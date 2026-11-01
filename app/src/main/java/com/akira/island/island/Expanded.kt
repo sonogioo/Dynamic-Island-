@@ -676,7 +676,7 @@ private fun IdleExpanded(s: IslandSettings, battery: BatteryInfo) {
     val now = rememberWallNow(1000)
     val time = DateFormat.getTimeFormat(context).format(Date(now))
     // «Пятница, 24 октября» или «Friday, October 24» — на языке острова
-    val date = SimpleDateFormat(if (Lang.en) "EEEE, MMMM d" else "EEEE, d MMMM", Lang.locale).format(Date(now))
+    val date = SimpleDateFormat(if (Lang.it) "EEEE d MMMM" else if (Lang.en) "EEEE, MMMM d" else "EEEE, d MMMM", Lang.locale).format(Date(now))
         .replaceFirstChar { it.titlecase(Lang.locale) }
     val alarm by IslandBus.nextAlarm.collectAsState()
     Column {

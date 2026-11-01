@@ -1,15 +1,17 @@
 package com.akira.island.core
 
+import android.os.SystemClock
 import com.akira.island.data.SettingsRepo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -76,29 +78,93 @@ object IslandBus {
     @Volatile
     var lastTouch = 0L
 
-    private val queue = Channel<Notice>(capacity = 6, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    /**
+     * Очередь плашек. Сообщения одной переписки не копятся друг за другом: новое заменяет карточку
+     * на экране или в очереди (в ней и так вся переписка), а сообщение из другой переписки
+     * поторапливает показанное — как баннеры iPhone, где свежее уведомление не ждёт старых.
+     */
+    private val pending = ArrayDeque<Notice>()
+    private val wake = Channel<Unit>(Channel.CONFLATED)
+    /** Показанную карточку обновили новым сообщением той же переписки — время показа считается заново */
+    private val refreshed = MutableStateFlow(0L)
+    /** Пришло сообщение из другой переписки — показанное сообщение уступает ему место */
+    private val hurry = MutableStateFlow(0L)
+    private const val MAX_PENDING = 6
+    /** Сколько сообщение видно хотя бы, даже если за ним уже ждёт следующее */
+    private const val MIN_SHOWN_MS = 1_500L
 
     init {
         scope.launch {
-            for (n in queue) {
-                notice.value = n
-                val duration = SettingsRepo.current.noticeDurationMs + n.extraMs
-                // Уведомление уходит по времени или раньше, если его смахнули кликом
-                withTimeoutOrNull(duration) { notice.first { it?.id != n.id } }
-                // Пока отвечают или листают переписку, карточка остаётся; потом ещё чуть-чуть
-                if (notice.value?.id == n.id && noticeHold.value) {
-                    while (notice.value?.id == n.id && noticeHold.value) delay(200)
-                    if (notice.value?.id == n.id) withTimeoutOrNull(1500) { notice.first { it?.id != n.id } }
+            while (true) {
+                val n = synchronized(pending) { pending.removeFirstOrNull() }
+                if (n == null) {
+                    wake.receive()
+                    continue
                 }
-                if (notice.value?.id == n.id) notice.value = null
+                show(n)
                 // Короткая пауза между плашками, чтобы они не слипались, — но без заметного ожидания
                 delay(110)
             }
         }
     }
 
+    private suspend fun show(n: Notice) {
+        notice.value = n
+        var shownAt = SystemClock.elapsedRealtime()
+        while (true) {
+            val stamp = refreshed.value
+            val hurried = hurry.value
+            val duration = SettingsRepo.current.noticeDurationMs + (notice.value?.extraMs ?: n.extraMs)
+            // Уведомление уходит по времени или раньше, если его смахнули кликом
+            withTimeoutOrNull(duration) {
+                merge(notice.filter { it?.id != n.id }, refreshed.filter { it != stamp }, hurry.filter { it != hurried }).first()
+            }
+            if (notice.value?.id != n.id) return
+            if (refreshed.value != stamp) {
+                shownAt = SystemClock.elapsedRealtime()
+                continue
+            }
+            if (hurry.value != hurried && !noticeHold.value) {
+                val left = MIN_SHOWN_MS - (SystemClock.elapsedRealtime() - shownAt)
+                if (left > 0) withTimeoutOrNull(left) { notice.first { it?.id != n.id } }
+                // Пока ждали, пришло ещё сообщение этой же переписки — оно важнее очереди
+                if (refreshed.value != stamp && notice.value?.id == n.id) {
+                    shownAt = SystemClock.elapsedRealtime()
+                    continue
+                }
+            }
+            break
+        }
+        // Пока отвечают или листают переписку, карточка остаётся; потом ещё чуть-чуть
+        if (notice.value?.id == n.id && noticeHold.value) {
+            while (notice.value?.id == n.id && noticeHold.value) delay(200)
+            if (notice.value?.id == n.id) withTimeoutOrNull(1500) { notice.first { it?.id != n.id } }
+        }
+        if (notice.value?.id == n.id) notice.value = null
+    }
+
     fun post(n: Notice) {
-        queue.trySend(n)
+        val key = n.message?.key
+        if (key != null) {
+            val current = notice.value
+            if (current?.message?.key == key) {
+                // Новое сообщение той же переписки: карточка обновляется на месте, ввод ответа не сбрасывается
+                notice.value = n.copy(id = current.id)
+                refreshed.value++
+                return
+            }
+        }
+        synchronized(pending) {
+            val queued = if (key == null) -1 else pending.indexOfFirst { it.message?.key == key }
+            if (queued >= 0) {
+                pending[queued] = n
+                return
+            }
+            if (pending.size >= MAX_PENDING) pending.removeFirst()
+            pending.addLast(n)
+        }
+        if (key != null && notice.value?.style == NoticeStyle.MESSAGE) hurry.value++
+        wake.trySend(Unit)
     }
 }
 

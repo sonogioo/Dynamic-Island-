@@ -4,7 +4,13 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.app.Person
 import android.os.Build
+import android.os.SystemClock
 import android.content.Context
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Chronometer
+import android.widget.FrameLayout
+import android.widget.TextView
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.compose.ui.graphics.ImageBitmap
@@ -61,9 +67,11 @@ object NotificationParser {
         val title = ex.getCharSequence(Notification.EXTRA_TITLE)?.toString()
             ?: appLabel(context, sbn.packageName)
 
-        val max = ex.getInt(Notification.EXTRA_PROGRESS_MAX, 0)
-        val value = ex.getInt(Notification.EXTRA_PROGRESS, 0)
-        val indeterminate = ex.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE, false)
+        // ProgressStyle Android 16 хранит прогресс в самом стиле — достаём его, если в extras пусто
+        val styled = if (!ex.containsKey(Notification.EXTRA_PROGRESS_MAX)) LiveUpdates.progress(context, n) else null
+        val max = styled?.max ?: ex.getInt(Notification.EXTRA_PROGRESS_MAX, 0)
+        val value = styled?.value ?: ex.getInt(Notification.EXTRA_PROGRESS, 0)
+        val indeterminate = styled?.indeterminate ?: ex.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE, false)
         val ongoing = n.flags and Notification.FLAG_ONGOING_EVENT != 0
         val hasProgress = !isMedia && ((max > 0 && value < max) || (indeterminate && ongoing))
         IslandBus.progress.value = IslandBus.progress.value.toMutableMap().apply {
@@ -79,7 +87,10 @@ object NotificationParser {
         SystemBanners.onPosted(sbn, incomingCall = call?.incoming == true)
         // Звонящий будильник или таймер «Часов» — у него полноэкранный сигнал; остров включит экран сам,
         // даже если всплывающие плашки «Часов» выключены
-        val ringing = n.category == Notification.CATEGORY_ALARM && n.fullScreenIntent != null
+        // Истёкший таймер «Часов» (например, Samsung) может прийти без категории будильника — у «Часов» хватает полноэкранного сигнала
+        val clockApp = ClockApps.isClock(context, sbn.packageName)
+        val ringing = n.fullScreenIntent != null && call == null &&
+            (n.category == Notification.CATEGORY_ALARM || clockApp && n.category != Notification.CATEGORY_CALL)
         if (ringing != (sbn.key in IslandBus.ringingAlarms.value)) {
             IslandBus.ringingAlarms.value = if (ringing) IslandBus.ringingAlarms.value + sbn.key else IslandBus.ringingAlarms.value - sbn.key
         }
@@ -89,27 +100,44 @@ object NotificationParser {
 
         val ticking = ex.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER, false) && n.`when` > 0
         // Кнопки «Часов» (пауза, продолжить, сброс) — их нажимают кнопки острова
-        val clock = ClockApps.isClock(context, sbn.packageName)
+        val clock = clockApp
         val buttons = if (clock) ClockWords.buttons(n.actions) else emptyMap()
+        // «Часы», которые рисуют таймер и секундомер своей раскладкой (RemoteViews), не ставят EXTRA_SHOW_CHRONOMETER:
+        // счёт идёт в виджете Chronometer или в тексте — читаем саму раскладку
+        val remote = if (clock && !ticking && call == null && !isMedia && sbn.isOngoing) ClockRemote.read(context, n) else null
+        val pausedByButtons = ClockAction.START in buttons && ClockAction.PAUSE !in buttons
+        val running = remote != null && !pausedByButtons && (remote.base != null || ClockAction.PAUSE in buttons)
         // Таймер или секундомер «Часов» на паузе: счёт стоит, время только в тексте, а в кнопках — «Продолжить»
-        val pausedMs = if (clock && !ticking && call == null && !isMedia && ClockAction.START in buttons) {
+        val pausedMs = if (clock && !ticking && !running && call == null && !isMedia && ClockAction.START in buttons) {
             listOf(Notification.EXTRA_TITLE, Notification.EXTRA_TEXT, Notification.EXTRA_SUB_TEXT, Notification.EXTRA_BIG_TEXT)
-                .firstNotNullOfOrNull { ClockScreenParser.find(ex.getCharSequence(it)) }
+                .firstNotNullOfOrNull { ClockScreenParser.find(ex.getCharSequence(it)) } ?: remote?.textMs
         } else {
             null
         }
         // Неактивный (на паузе) таймер, который остров уже убрал, снова не показываем
-        val chrono = call == null && !isMedia && (ticking || pausedMs != null) && !ClockControl.wasDismissed(sbn.key, pausedMs)
+        val chrono = call == null && !isMedia && (ticking || running || pausedMs != null) && !ClockControl.wasDismissed(sbn.key, pausedMs)
         if (clock && chrono) ClockControl.reader?.onNotificationChrono(sbn.packageName)
         if (pausedMs != null && chrono) ClockControl.dropPausedLater(sbn.key)
         IslandBus.chrono.value = IslandBus.chrono.value.toMutableMap().apply {
             if (chrono) {
-                val down = if (pausedMs != null) looksLikeTimer(n, title) else ex.getBoolean(Notification.EXTRA_CHRONOMETER_COUNT_DOWN, false)
+                val down = when {
+                    ticking -> ex.getBoolean(Notification.EXTRA_CHRONOMETER_COUNT_DOWN, false)
+                    remote?.base != null -> remote.countDown
+                    else -> looksLikeTimer(n, title)
+                }
+                // Начало секундомера или конец таймера по настенным часам, как у Notification.when
+                val textMs = remote?.textMs
+                val start = when {
+                    ticking -> n.`when`
+                    remote?.base != null -> remote.base
+                    running && textMs != null -> System.currentTimeMillis() + if (down) textMs else -textMs
+                    else -> n.`when`
+                }
                 val stop = n.actions?.firstOrNull { a ->
                     val t = a.title?.toString()?.lowercase().orEmpty()
-                    listOf("стоп", "останов", "заверш", "stop", "finish").any { it in t }
+                    listOf("стоп", "останов", "заверш", "stop", "finish", "interromp", "ferma", "termina").any { it in t }
                 }?.actionIntent
-                put(sbn.key, ChronoInfo(sbn.key, sbn.packageName, title, icon(context, sbn.packageName), n.`when`, down, sbn.postTime, stop,
+                put(sbn.key, ChronoInfo(sbn.key, sbn.packageName, title, icon(context, sbn.packageName), start, down, sbn.postTime, stop,
                     pausedMs = pausedMs, pause = buttons[ClockAction.PAUSE], resume = buttons[ClockAction.START],
                     reset = buttons[ClockAction.RESET]))
             } else {
@@ -117,7 +145,12 @@ object NotificationParser {
             }
         }
 
-        val live = if (call == null && !isMedia) LiveParser.parse(context, sbn, title) else null
+        // Живое обновление с таймером или прогрессом показывается ими, а не карточкой
+        val live = if (call == null && !isMedia) {
+            LiveParser.parse(context, sbn, title)?.takeUnless { it.kind == LiveKind.OTHER && (chrono || hasProgress) }
+        } else {
+            null
+        }
         val liveWasKnown = sbn.key in IslandBus.live.value
         IslandBus.live.value = IslandBus.live.value.toMutableMap().apply {
             if (live != null) put(sbn.key, live) else remove(sbn.key)
@@ -133,6 +166,8 @@ object NotificationParser {
         }
 
         val service = context as? NotificationListenerService
+        // Висевшие до запуска переписки запоминаем, чтобы при следующем обновлении они не всплыли как новые
+        if (initial) Messages.markSeen(sbn)
         if (!initial && service != null && !isMedia && call == null && !chrono && !hasProgress && live == null) {
             // Уведомление об оплате из банка — «Оплачено» с галочкой, а не карточка сообщения
             if (PayMonitor.onNotification(context, sbn)) return
@@ -189,7 +224,7 @@ object NotificationParser {
     private fun looksLikeTimer(n: Notification, title: String): Boolean {
         val t = (title + " " + n.channelId.orEmpty()).lowercase()
         return when {
-            "секундомер" in t || "stopwatch" in t -> false
+            "секундомер" in t || "stopwatch" in t || "cronometro" in t -> false
             else -> true
         }
     }
@@ -218,6 +253,35 @@ object NotificationParser {
         val pm = context.packageManager
         pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
     }.getOrDefault(pkg)
+}
+
+/**
+ * Таймер и секундомер из своей раскладки уведомления (RemoteViews) — на случай, если «Часы» (например, Samsung)
+ * присылают их так, а не через EXTRA_SHOW_CHRONOMETER.
+ * Раскладку можно развернуть у себя: RemoteViews для того и передаются шторке и слушателям уведомлений.
+ */
+object ClockRemote {
+    /** [base] — начало секундомера или конец таймера по настенным часам, если в раскладке есть Chronometer */
+    class Reading(val base: Long?, val countDown: Boolean, val textMs: Long?)
+
+    fun read(context: Context, n: Notification): Reading? {
+        val rv = n.contentView ?: n.bigContentView ?: n.headsUpContentView ?: return null
+        return runCatching {
+            val root = rv.apply(context, FrameLayout(context))
+            var chrono: Chronometer? = null
+            var textMs: Long? = null
+            fun walk(v: View) {
+                if (v is Chronometer && chrono == null) chrono = v
+                if (v is TextView && textMs == null) textMs = ClockScreenParser.find(v.text)
+                if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+            }
+            walk(root)
+            val c = chrono
+            // Chronometer считает от elapsedRealtime — переводим в настенное время
+            val base = c?.let { System.currentTimeMillis() + (it.base - SystemClock.elapsedRealtime()) }
+            Reading(base, c?.isCountDown == true, textMs)
+        }.getOrNull()?.takeIf { it.base != null || it.textMs != null }
+    }
 }
 
 /** Приложения, чьи постоянные уведомления остров показывает как «живые активности». */

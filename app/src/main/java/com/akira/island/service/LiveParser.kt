@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
 import com.akira.island.R
 import com.akira.island.core.LiveInfo
+import com.akira.island.core.LiveKind
 import com.akira.island.core.Notice
 import com.akira.island.core.NoticeStyle
 import com.akira.island.core.Turn
@@ -43,7 +44,9 @@ object LiveParser {
     fun parse(context: Context, sbn: StatusBarNotification, fallbackTitle: String): LiveInfo? {
         val n = sbn.notification
         val ex = n.extras
-        val kind = LiveApps.kind(sbn.packageName, n.category) ?: return null
+        // Навигаторы, такси и доставка из списка — и живые обновления Android 16 любого приложения
+        val kind = LiveApps.kind(sbn.packageName, n.category)
+            ?: if (LiveUpdates.isLiveUpdate(n)) LiveKind.OTHER else return null
         val head = ex.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim().orEmpty()
         val text = ex.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim().orEmpty()
         val big = ex.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.trim().orEmpty()
@@ -87,6 +90,7 @@ object LiveParser {
             distance = findDistance(all),
             eta = findEta(all),
             turn = turn,
+            chip = LiveUpdates.shortText(n),
         )
     }
 

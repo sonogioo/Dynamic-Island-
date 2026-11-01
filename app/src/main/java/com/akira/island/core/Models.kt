@@ -125,7 +125,8 @@ data class CallInfo(
     val open: PendingIntent?,
 )
 
-enum class LiveKind { NAV, RIDE, DELIVERY }
+/** OTHER — «живое обновление» Android 16 любого другого приложения (LiveUpdates) */
+enum class LiveKind { NAV, RIDE, DELIVERY, OTHER }
 
 /** Куда поворачивать по подсказке навигатора. */
 enum class Turn { STRAIGHT, LEFT, RIGHT, UTURN }
@@ -151,6 +152,8 @@ data class LiveInfo(
     val turn: Turn? = null,
     /** До какого времени (System.currentTimeMillis) показывать; 0 — пока живо само уведомление. Нужно пробной активности. */
     val expiresAt: Long = 0,
+    /** Короткий текст чипа живого обновления Android 16 (setShortCriticalText): «5 мин», «Посадка» */
+    val chip: String? = null,
 )
 
 data class TorchState(

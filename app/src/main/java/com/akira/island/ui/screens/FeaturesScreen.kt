@@ -126,7 +126,7 @@ fun FeaturesScreen(open: (Screen) -> Unit) {
         SectionHeader(tr("Общие", "General"))
         Group {
             // Значок глобуса и «Language» рядом — язык найдётся, даже если сейчас он непонятен
-            GroupItem(Pos.First, Icons.Rounded.Language, if (Lang.en) "Language" else "Язык · Language", s.language.title,
+            GroupItem(Pos.First, Icons.Rounded.Language, if (Lang.it) "Lingua · Language" else if (Lang.en) "Language" else "Язык · Language", s.language.title,
                 color = Tile.Blue, onClick = { languageDialog = true }) { Arrow() }
             GroupItem(Pos.Last, Icons.Rounded.Restore, tr("Сбросить все настройки", "Reset all settings"),
                 tr("Вернуть всё как было после установки", "Back to how it was after installing"),
@@ -135,7 +135,7 @@ fun FeaturesScreen(open: (Screen) -> Unit) {
     }
 
     if (languageDialog) {
-        ChoiceDialog(if (Lang.en) "Language" else "Язык · Language", AppLanguage.entries, s.language, { it.title },
+        ChoiceDialog(if (Lang.it) "Lingua · Language" else if (Lang.en) "Language" else "Язык · Language", AppLanguage.entries, s.language, { it.title },
             { v -> SettingsRepo.update { copy(language = v) } }) { languageDialog = false }
     }
 

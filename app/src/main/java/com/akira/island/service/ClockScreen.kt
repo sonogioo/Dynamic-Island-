@@ -60,16 +60,24 @@ enum class ClockAction { START, PAUSE, RESET }
 
 /** Подписи кнопок «Часов» — для нажатий на экране, кнопок уведомления и поиска кнопки, которую нажмёт остров. */
 object ClockWords {
-    private val start = listOf("старт", "start", "начать", "пуск", "запуст", "продолж", "возобнов", "resume")
-    private val pause = setOf("пауза", "pause", "стоп", "stop")
-    private val reset = listOf("сброс", "reset", "удал", "delete", "отмен", "cancel", "очист", "clear")
+    // Русский, английский, итальянский (One UI на итальянском: «Avvia», «Riprendi», «Pausa», «Ripristina»),
+    // испанский, португальский, немецкий, французский
+    private val start = listOf(
+        "старт", "start", "начать", "пуск", "запуст", "продолж", "возобнов", "resume",
+        "avvia", "riprendi", "continua", "inicia", "reanudar", "iniciar", "retomar", "fortsetzen", "démarrer", "reprendre",
+    )
+    private val pause = setOf("пауза", "pause", "стоп", "stop", "pausa", "interrompi", "pausar", "pausieren")
+    private val reset = listOf(
+        "сброс", "reset", "удал", "delete", "отмен", "cancel", "очист", "clear",
+        "ripristin", "azzer", "annull", "elimin", "cancell", "restablec", "zurücksetz", "réinitialis",
+    )
     private val nonLetters = Regex("[^\\p{L}]+")
 
     /** Кнопки на экране «Часов», которые остров ищет и нажимает сам, — подпись целиком. */
     val labels = mapOf(
-        ClockAction.START to listOf("Старт", "Начать", "Продолжить", "Пуск", "Возобновить", "Start", "Resume"),
-        ClockAction.PAUSE to listOf("Пауза", "Стоп", "Pause", "Stop"),
-        ClockAction.RESET to listOf("Сбросить", "Сброс", "Удалить", "Reset", "Delete"),
+        ClockAction.START to listOf("Старт", "Начать", "Продолжить", "Пуск", "Возобновить", "Start", "Resume", "Avvia", "Riprendi", "Continua"),
+        ClockAction.PAUSE to listOf("Пауза", "Стоп", "Pause", "Stop", "Pausa", "Interrompi"),
+        ClockAction.RESET to listOf("Сбросить", "Сброс", "Удалить", "Reset", "Delete", "Ripristina", "Azzera", "Annulla", "Elimina"),
     )
 
     /** По началу слова; «стоп» — только целым словом, иначе совпадёт «Stopwatch». */

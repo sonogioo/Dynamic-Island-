@@ -42,6 +42,21 @@ object Messages {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?) = size > 100
     }
 
+    /**
+     * Уведомление убрали (elapsedRealtime): WhatsApp при новом сообщении снимает и заново выкладывает
+     * уведомления других чатов. Такое «воскрешение» с тем же текстом — не новое сообщение.
+     */
+    private val goneAt = HashMap<String, Long>()
+
+    /**
+     * Время самого нового сообщения переписки (MessagingStyle, поле «time»), которое остров уже видел, —
+     * по ключу уведомления. Запоминается для всех уведомлений, даже не показанных и висевших до запуска
+     * острова, и не забывается при снятии уведомления: так старые чаты не всплывают снова.
+     */
+    private val seenAt = object : LinkedHashMap<String, Long>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?) = size > 300
+    }
+
     /** Куда только что ответили из острова: обновление этого уведомления с нашим же ответом не показываем */
     private val repliedAt = HashMap<String, Long>()
 
@@ -58,9 +73,11 @@ object Messages {
     )
 
     fun maybeShow(service: NotificationListenerService, sbn: StatusBarNotification, appName: String) {
+        val n = sbn.notification ?: return
+        // До всех проверок: даже не показанное сообщение больше не «новое»
+        val fresh = n.extras?.let { freshConversation(sbn.key, it) }
         val s = SettingsRepo.current
         if (!s.cardMessages || !s.enabled) return
-        val n = sbn.notification ?: return
         if (sbn.isOngoing) return
         if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
         if (n.flags and Notification.FLAG_FOREGROUND_SERVICE != 0) return
@@ -103,11 +120,19 @@ object Messages {
         if (title.isEmpty() && text.isEmpty()) return
 
         val signature = "$title\n$text"
-        val previous = shown[sbn.key]
-        if (previous == signature) return
-        // Обновление того же уведомления, которое просит не звенеть повторно
-        if (previous != null && n.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0) return
+        if (fresh != null) {
+            // Переписка: показываем, только если в ней есть сообщение новее виденного. Каждое новое сообщение
+            // показывается, даже если мессенджер просит не звенеть повторно (FLAG_ONLY_ALERT_ONCE), — как на iPhone
+            if (!fresh) return
+        } else {
+            val gone = goneAt[sbn.key]
+            val previous = shown[sbn.key]?.takeUnless { gone != null && SystemClock.elapsedRealtime() - gone > 10_000 }
+            if (previous == signature) return
+            // Обновление того же уведомления, которое просит не звенеть повторно
+            if (previous != null && n.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0) return
+        }
         shown[sbn.key] = signature
+        goneAt.remove(sbn.key)
 
         val avatar = runCatching {
             n.getLargeIcon()?.loadDrawable(service)?.toBitmap(128, 128)?.asImageBitmap()
@@ -229,8 +254,27 @@ object Messages {
         repliedAt[key] = SystemClock.elapsedRealtime()
     }
 
+    /**
+     * Есть ли в переписке (MessagingStyle) сообщение новее всех, что остров видел под этим ключом;
+     * заодно запоминает самое новое. null — уведомление не переписка или без времени сообщений.
+     */
+    private fun freshConversation(key: String, ex: Bundle): Boolean? {
+        @Suppress("DEPRECATION")
+        val arr: Array<Parcelable> = ex.getParcelableArray(Notification.EXTRA_MESSAGES) ?: return null
+        val newest = arr.maxOfOrNull { (it as? Bundle)?.getLong("time", 0L) ?: 0L }?.takeIf { it > 0 } ?: return null
+        val known = seenAt[key]
+        seenAt[key] = maxOf(newest, known ?: 0L)
+        return known == null || newest > known
+    }
+
+    /** Уведомление висело до запуска острова: его сообщения уже не новые. */
+    fun markSeen(sbn: StatusBarNotification) {
+        sbn.notification?.extras?.let { freshConversation(sbn.key, it) }
+    }
+
     fun forget(key: String) {
-        shown.remove(key)
+        // Текст и время сообщений не забываем сразу: уведомление могут тут же выложить заново
+        if (key in shown) goneAt[key] = SystemClock.elapsedRealtime()
         repliedAt.remove(key)
     }
 }

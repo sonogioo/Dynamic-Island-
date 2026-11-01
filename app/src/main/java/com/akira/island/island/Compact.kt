@@ -440,17 +440,18 @@ private fun PillNotice(n: Notice, s: IslandSettings) {
 }
 
 /**
- * Уведомление приложения — как развёрнутый остров iPhone, но по меркам всплывающего уведомления Android:
- * та же ширина (по 16 dp от краёв), аватар 40 dp, имя 15 sp, текст 14 sp, кнопки 14 sp. Сверху, по бокам
- * от камеры, — значок и название приложения и «сейчас»; само уведомление начинается под строкой
- * состояния, там же, где системное. Ниже — кнопки из уведомления («Ответить», «Пометить прочитанным»).
+ * Уведомление приложения — компактно, как баннер iOS 16+: сразу под камерой слева значок 38 dp
+ * (аватар собеседника со значком приложения в углу или сам значок приложения со скруглением iOS),
+ * справа в первой строке жирный заголовок и серое «сейчас», ниже текст. Отдельной шапки с названием
+ * приложения нет — как на iPhone, приложение узнаётся по значку; на заблокированном экране со скрытым
+ * содержимым заголовком становится название приложения. Ниже — кнопки из уведомления.
  * Все размеры в sp растут вместе с размером шрифта Android, ширина и отступы — с настройками острова.
  */
 @Composable
 private fun MessageCard(n: Notice, m: AppMessage, s: IslandSettings, @Suppress("UNUSED_PARAMETER") wideWidth: Dp) {
     val context = LocalContext.current
     val haptic = rememberHaptic()
-    val iconSize = 40.dp
+    val iconSize = 38.dp
     val reply by IslandBus.reply.collectAsState()
     val locked by IslandBus.locked.collectAsState()
     // На заблокированном телефоне — как в шторке: без кнопок, а скрытые уведомления без имени и текста
@@ -476,42 +477,26 @@ private fun MessageCard(n: Notice, m: AppMessage, s: IslandSettings, @Suppress("
             .width(messageWidth())
             .padding(bottom = 12.dp),
     ) {
-        // Шапка на уровне камеры: слева приложение, справа время — как боковые части острова iPhone
-        Row(
-            Modifier.fillMaxWidth().height(s.height.dp).padding(horizontal = 18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                if (m.appIcon != null) {
-                    Image(m.appIcon, null, Modifier.size(15.dp).clip(RoundedCornerShape(4.dp)))
-                    Spacer(Modifier.width(6.dp))
-                }
-                Text(m.appName, color = dim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            Spacer(Modifier.width(compactGap(s)))
-            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                Text(tr("сейчас", "now"), color = dim, fontSize = 12.sp, maxLines = 1, softWrap = false)
-                Spacer(Modifier.width(4.dp))
-                Icon(Ios.bell, null, tint = dim, modifier = Modifier.size(12.dp))
-            }
-        }
-        Spacer(Modifier.height((messageTop(s) - s.height.dp).coerceAtLeast(4.dp)))
-        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.Top) {
+        // Под камерой — только небольшой зазор: само уведомление сразу под ней, как в развёрнутом острове iPhone
+        Spacer(Modifier.height(s.height.dp + 6.dp))
+        Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.Top) {
             NotifIcon(if (hidden) m.copy(avatar = null) else m, n, iconSize, Color(s.color))
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Row(Modifier.fillMaxWidth().heightIn(min = 22.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().heightIn(min = 20.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         if (hidden) m.appName else n.title, color = Color.White, fontSize = 15.sp, lineHeight = 20.sp,
                         fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                     )
                     if (m.history.size > 1 && !hidden) {
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(6.dp))
                         CountPill(m.history.size, open, accent) {
                             haptic()
                             open = !open
                         }
                     }
+                    Spacer(Modifier.width(8.dp))
+                    Text(tr("сейчас", "now"), color = dim, fontSize = 13.sp, maxLines = 1, softWrap = false)
                 }
                 if (hidden) {
                     Text(tr("Содержимое скрыто", "Content hidden"), color = dim, fontSize = 14.sp, lineHeight = 19.sp, maxLines = 1)
@@ -525,7 +510,7 @@ private fun MessageCard(n: Notice, m: AppMessage, s: IslandSettings, @Suppress("
                     }
                 } else if (m.text.isNotEmpty()) {
                     Text(
-                        m.text, color = Color.White.copy(alpha = 0.88f), fontSize = 14.sp, lineHeight = 19.sp, maxLines = s.msgLines.coerceIn(1, 8),
+                        m.text, color = Color.White.copy(alpha = 0.9f), fontSize = 15.sp, lineHeight = 20.sp, maxLines = s.msgLines.coerceIn(1, 8),
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -533,7 +518,7 @@ private fun MessageCard(n: Notice, m: AppMessage, s: IslandSettings, @Suppress("
         }
         if (replyAction != null) {
             // Строка ответа стоит под текстом, как кнопки, — на одной линии с ним
-            Box(Modifier.padding(start = 16.dp + iconSize + 12.dp, end = 16.dp)) {
+            Box(Modifier.padding(start = 14.dp + iconSize + 10.dp, end = 14.dp)) {
                 ReplyField(replyAction, accent) { text ->
                     if (text.isBlank()) return@ReplyField
                     if (Controls.sendReply(context, replyAction, text)) {
@@ -560,7 +545,7 @@ private fun MessageCard(n: Notice, m: AppMessage, s: IslandSettings, @Suppress("
         } else if (m.actions.isNotEmpty() && !locked) {
             // Кнопки стоят под текстом, на одной линии с ним, как в шторке
             Row(
-                Modifier.fillMaxWidth().padding(start = 16.dp + iconSize + 12.dp, end = 16.dp, top = 4.dp),
+                Modifier.fillMaxWidth().padding(start = 14.dp + iconSize + 10.dp, end = 14.dp, top = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(18.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -610,9 +595,11 @@ private fun statusBarHeight(): Dp {
 @Composable
 private fun NotifIcon(m: AppMessage, n: Notice, size: Dp, ring: Color) {
     Box(Modifier.size(size + 4.dp)) {
-        val big = m.avatar ?: m.appIcon
-        if (big != null) {
-            Image(big, null, Modifier.size(size).clip(CircleShape), contentScale = ContentScale.Crop)
+        // Аватар — круг, значок приложения — скруглённый квадрат, как на iPhone
+        if (m.avatar != null) {
+            Image(m.avatar, null, Modifier.size(size).clip(CircleShape), contentScale = ContentScale.Crop)
+        } else if (m.appIcon != null) {
+            Image(m.appIcon, null, Modifier.size(size).clip(RoundedCornerShape(size * 0.225f)), contentScale = ContentScale.Crop)
         } else {
             Box(Modifier.size(size).clip(CircleShape).background(Color(0xFF2C2C2E)), contentAlignment = Alignment.Center) {
                 Icon(n.icon, null, tint = Color.White, modifier = Modifier.size(size * 0.5f))
@@ -621,7 +608,8 @@ private fun NotifIcon(m: AppMessage, n: Notice, size: Dp, ring: Color) {
         if (m.avatar != null && m.appIcon != null) {
             Image(
                 m.appIcon, null,
-                Modifier.align(Alignment.BottomEnd).size(size * 0.44f).clip(CircleShape).background(ring).padding(2.dp).clip(CircleShape),
+                Modifier.align(Alignment.BottomEnd).size(size * 0.46f).clip(RoundedCornerShape(size * 0.12f)).background(ring)
+                    .padding(1.5.dp).clip(RoundedCornerShape(size * 0.1f)),
             )
         }
     }
@@ -780,13 +768,14 @@ fun liveTint(kind: LiveKind): Color = when (kind) {
     LiveKind.NAV -> Tints.Green
     LiveKind.RIDE -> Tints.Yellow
     LiveKind.DELIVERY -> Tints.Orange
+    LiveKind.OTHER -> Tints.Blue
 }
 
 /**
  * Главное из уведомления для узкой капсулы: расстояние до манёвра; у навигатора без расстояния —
  * время в пути, у такси и доставки — заголовок. Если показывать нечего, возвращает null.
  */
-fun liveShort(l: LiveInfo): String? = l.distance
+fun liveShort(l: LiveInfo): String? = l.chip ?: l.distance
     ?: if (l.kind == LiveKind.NAV) {
         l.eta?.substringAfterLast(" · ")?.takeIf { it.isNotBlank() }
     } else {

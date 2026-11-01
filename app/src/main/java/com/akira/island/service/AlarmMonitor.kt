@@ -43,7 +43,8 @@ class AlarmMonitor(private val context: Context) {
 
     private fun refresh(announce: Boolean) {
         val info = runCatching { alarms?.nextAlarmClock }.getOrNull()
-        val next = info?.takeIf { a -> a.showIntent?.creatorPackage?.let { ClockApps.isAlarmApp(context, it) } == true }
+        // Без showIntent приложение не узнать — такой будильник строка состояния всё равно показывает, показываем и мы
+        val next = info?.takeIf { a -> a.showIntent?.creatorPackage?.let { ClockApps.isAlarmApp(context, it) } ?: true }
             ?.let { AlarmInfo(it.triggerTime, it.showIntent?.creatorPackage, it.showIntent) }
         val prev = IslandBus.nextAlarm.value
         IslandBus.nextAlarm.value = next
