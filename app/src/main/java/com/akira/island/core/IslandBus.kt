@@ -57,6 +57,8 @@ object IslandBus {
     val widthPreviewUntil = MutableStateFlow(0L)
     /** Человек читает или отвечает — уведомление не убирается по таймеру */
     val noticeHold = MutableStateFlow(false)
+    /** У какого уведомления (id) показаны кнопки: как на iPhone, они появляются, если потянуть баннер вниз или удержать */
+    val noticeActions = MutableStateFlow<Long?>(null)
     val battery = MutableStateFlow(BatteryInfo())
     val foregroundPackage = MutableStateFlow<String?>(null)
     val landscape = MutableStateFlow(false)

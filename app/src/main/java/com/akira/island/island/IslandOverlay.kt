@@ -587,10 +587,18 @@ private fun IslandBody(
                         perform(context, settings.doubleTapAction, current)
                     }
                 }
-                val onLong: ((Offset) -> Unit)? = if (!longOn) null else {
-                    { _: Offset ->
+                // Удержание уведомления с кнопками показывает кнопки, как на iPhone; остальное — по настройке
+                val onLong: (Offset) -> Unit = { _: Offset ->
+                    val act = current
+                    if (act is Act.NoticeA && revealActions(act)) {
+                        haptic()
+                    } else if (longOn) {
                         haptic()
                         perform(context, settings.longPressAction, current)
+                    } else {
+                        // Без действия на удержание оно работает как обычное нажатие — как было раньше
+                        haptic()
+                        onTap(context, current, isExpanded, settings)
                     }
                 }
                 detectTapGestures(
@@ -617,6 +625,8 @@ private fun IslandBody(
                         val vertical = abs(dy) > abs(dx)
                         val act = current
                         when {
+                            // Потянуть уведомление вниз — показать его кнопки, как на iPhone
+                            !isExpanded && vertical && dy > threshold && act is Act.NoticeA && revealActions(act) -> haptic()
                             !isExpanded && vertical && dy > threshold && settings.swipeExpand && !act.transient &&
                                 (act !is Act.Idle || settings.idleExpand) -> {
                                 haptic()
@@ -770,6 +780,14 @@ private fun GraphicsLayerScope.blurLayer(dp: Float) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && dp > 0.3f) {
         renderEffect = BlurEffect(dp.dp.toPx(), dp.dp.toPx(), TileMode.Decal)
     }
+}
+
+/** Показать кнопки уведомления приложения, если они есть и ещё не показаны. */
+private fun revealActions(act: Act.NoticeA): Boolean {
+    val m = act.n.message ?: return false
+    if (m.actions.isEmpty() || IslandBus.locked.value || IslandBus.noticeActions.value == act.n.id) return false
+    IslandBus.noticeActions.value = act.n.id
+    return true
 }
 
 private fun onTap(context: Context, act: Act, expanded: Boolean, s: IslandSettings) {

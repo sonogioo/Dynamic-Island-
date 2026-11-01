@@ -461,9 +461,12 @@ private fun MessageCard(n: Notice, m: AppMessage, s: IslandSettings, @Suppress("
     var open by remember(n.id) { mutableStateOf(false) }
     val dim = Color.White.copy(alpha = 0.55f)
 
-    // Пока отвечают или листают переписку, плашка не уходит по таймеру
-    DisposableEffect(open, replyAction != null) {
-        IslandBus.noticeHold.value = open || replyAction != null
+    // Кнопки скрыты, как в баннере iPhone: появляются, если потянуть уведомление вниз или удержать его
+    val revealed by IslandBus.noticeActions.collectAsState()
+    val showActions = revealed == n.id
+    // Пока отвечают, листают переписку или выбирают кнопку, плашка не уходит по таймеру
+    DisposableEffect(open, replyAction != null, showActions) {
+        IslandBus.noticeHold.value = open || replyAction != null || showActions
         onDispose { IslandBus.noticeHold.value = false }
     }
     // Плашка ушла — ввод закрывается, окну возвращается «неактивный» режим
@@ -475,10 +478,10 @@ private fun MessageCard(n: Notice, m: AppMessage, s: IslandSettings, @Suppress("
         Modifier
             .animateContentSize(islandSpec(s))
             .width(messageWidth())
-            .padding(bottom = 12.dp),
+            .padding(bottom = 11.dp),
     ) {
         // Под камерой — только небольшой зазор: само уведомление сразу под ней, как в развёрнутом острове iPhone
-        Spacer(Modifier.height(s.height.dp + 6.dp))
+        Spacer(Modifier.height(s.height.dp + 2.dp))
         Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.Top) {
             NotifIcon(if (hidden) m.copy(avatar = null) else m, n, iconSize, Color(s.color))
             Spacer(Modifier.width(10.dp))
@@ -510,7 +513,8 @@ private fun MessageCard(n: Notice, m: AppMessage, s: IslandSettings, @Suppress("
                     }
                 } else if (m.text.isNotEmpty()) {
                     Text(
-                        m.text, color = Color.White.copy(alpha = 0.9f), fontSize = 15.sp, lineHeight = 20.sp, maxLines = s.msgLines.coerceIn(1, 8),
+                        m.text, color = Color.White.copy(alpha = 0.9f), fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.Normal,
+                        maxLines = s.msgLines.coerceIn(1, 8),
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -542,7 +546,7 @@ private fun MessageCard(n: Notice, m: AppMessage, s: IslandSettings, @Suppress("
                     }
                 }
             }
-        } else if (m.actions.isNotEmpty() && !locked) {
+        } else if (m.actions.isNotEmpty() && !locked && showActions) {
             // Кнопки стоят под текстом, на одной линии с ним, как в шторке
             Row(
                 Modifier.fillMaxWidth().padding(start = 14.dp + iconSize + 10.dp, end = 14.dp, top = 4.dp),
