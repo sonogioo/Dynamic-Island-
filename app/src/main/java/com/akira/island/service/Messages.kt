@@ -49,13 +49,15 @@ object Messages {
     private val goneAt = HashMap<String, Long>()
 
     /**
-     * Время самого нового сообщения переписки (MessagingStyle, поле «time»), которое остров уже видел, —
+     * Самое новое сообщение переписки (MessagingStyle: поля «time» и «text»), которое остров уже видел, —
      * по ключу уведомления. Запоминается для всех уведомлений, даже не показанных и висевших до запуска
      * острова, и не забывается при снятии уведомления: так старые чаты не всплывают снова.
      */
-    private val seenAt = object : LinkedHashMap<String, Long>(64, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?) = size > 300
+    private val seen = object : LinkedHashMap<String, Seen>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Seen>?) = size > 300
     }
+
+    private data class Seen(val time: Long, val text: String)
 
     /** Куда только что ответили из острова: обновление этого уведомления с нашим же ответом не показываем */
     private val repliedAt = HashMap<String, Long>()
@@ -255,16 +257,18 @@ object Messages {
     }
 
     /**
-     * Есть ли в переписке (MessagingStyle) сообщение новее всех, что остров видел под этим ключом;
-     * заодно запоминает самое новое. null — уведомление не переписка или без времени сообщений.
+     * Есть ли в переписке (MessagingStyle) сообщение новее всех, что остров видел под этим ключом, или
+     * последнее сообщение с тем же временем, но другим текстом — так ассистенты (Gemini и др.) дописывают
+     * ответ в то же сообщение. Заодно запоминает самое новое. null — не переписка или без времени сообщений.
      */
     private fun freshConversation(key: String, ex: Bundle): Boolean? {
         @Suppress("DEPRECATION")
         val arr: Array<Parcelable> = ex.getParcelableArray(Notification.EXTRA_MESSAGES) ?: return null
-        val newest = arr.maxOfOrNull { (it as? Bundle)?.getLong("time", 0L) ?: 0L }?.takeIf { it > 0 } ?: return null
-        val known = seenAt[key]
-        seenAt[key] = maxOf(newest, known ?: 0L)
-        return known == null || newest > known
+        val last = arr.mapNotNull { it as? Bundle }.maxByOrNull { it.getLong("time", 0L) } ?: return null
+        val now = Seen(last.getLong("time", 0L).takeIf { it > 0 } ?: return null, last.getCharSequence("text")?.toString().orEmpty())
+        val known = seen[key]
+        if (known == null || now.time >= known.time) seen[key] = now
+        return known == null || now.time > known.time || now.time == known.time && now.text != known.text
     }
 
     /** Уведомление висело до запуска острова: его сообщения уже не новые. */

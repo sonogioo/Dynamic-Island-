@@ -2,15 +2,11 @@ package com.akira.island.island
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -50,23 +46,28 @@ fun PayEffects(primary: Act, body: () -> Rect, s: IslandSettings) {
     }
 }
 
-/** Волны NFC: новая каждые 0,9 с, расходится от краёв острова и гаснет за 1,35 с. */
+/**
+ * Волны NFC — сдержанно: тонкое кольцо раз в 1,6 с отходит от острова всего на 24 dp и гаснет,
+ * и так только три раза, потом остров спокойно ждёт терминал. Раньше волны шли без конца
+ * и разлетались на 90 dp — при каждом открытии банка это мелькало на весь верх экрана.
+ */
 @Composable
 private fun PayWaves(body: () -> Rect, notch: Boolean) {
-    val clock = rememberInfiniteTransition(label = "nfc")
-    val t by clock.animateFloat(0f, 1f, infiniteRepeatable(tween(900, easing = LinearEasing)), label = "t")
+    val p = remember { Animatable(1f) }
+    LaunchedEffect(Unit) {
+        repeat(3) {
+            p.snapTo(0f)
+            p.animateTo(1f, tween(1600, easing = LinearEasing))
+        }
+    }
     Canvas(Modifier.fillMaxSize()) {
         val b = body()
-        if (b.isEmpty) return@Canvas
-        for (j in 0..1) {
-            val p = (t + j) / 1.5f
-            if (p >= 1f) continue
-            val e = ExpoOut.transform(p)
-            val d = 6.dp.toPx() + e * 90.dp.toPx()
-            val alpha = (1f - p) * 0.75f
-            outline(b, d, Tints.Lavender.copy(alpha = alpha * 0.25f), 7.dp.toPx(), notch)
-            outline(b, d, Tints.Lavender.copy(alpha = alpha), 1.6.dp.toPx(), notch)
-        }
+        if (b.isEmpty || p.value >= 1f) return@Canvas
+        val e = ExpoOut.transform(p.value)
+        val d = 3.dp.toPx() + e * 24.dp.toPx()
+        val alpha = (1f - p.value) * 0.45f
+        outline(b, d, Tints.Lavender.copy(alpha = alpha * 0.2f), 4.dp.toPx(), notch)
+        outline(b, d, Tints.Lavender.copy(alpha = alpha), 1.2.dp.toPx(), notch)
     }
 }
 
