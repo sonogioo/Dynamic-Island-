@@ -2,7 +2,7 @@ name: Release del fork
 
 # Avvio a mano: Actions → "Release del fork" → Run workflow, sul branch fix/oneui-notifiche-whatsapp,
 # con il tag della nuova versione (es. v1.6.5-fix5). Le note sono in .github/release-notes.md.
-# La chiave di firma è sempre la stessa (.github/fork-key.p12, protetta dal segreto FORK_KEYSTORE_PASSWORD):
+# La chiave di firma è sempre la stessa (.github/fork-key.p12, protetta dal segreto DYNAMICISLAND):
 # così ogni versione si installa sopra la precedente senza perdere le impostazioni.
 on:
   workflow_dispatch:
@@ -20,7 +20,7 @@ jobs:
     env:
       TAG: ${{ inputs.tag }}
       GH_TOKEN: ${{ github.token }}
-      KS_PASS: ${{ secrets.FORK_KEYSTORE_PASSWORD }}
+      KS_PASS: ${{ secrets.DYNAMICISLAND }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,7 +29,7 @@ jobs:
       - name: Controlli
         run: |
           if [[ ! "$TAG" =~ ^v[0-9A-Za-z.\-]+$ ]]; then echo "::error::Tag non valido: $TAG"; exit 1; fi
-          if [[ -z "$KS_PASS" ]]; then echo "::error::Manca il segreto FORK_KEYSTORE_PASSWORD"; exit 1; fi
+          if [[ -z "$KS_PASS" ]]; then echo "::error::Manca il segreto DYNAMICISLAND"; exit 1; fi
           if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then echo "::error::La release $TAG esiste già"; exit 1; fi
 
       - uses: actions/setup-java@v4
