@@ -88,6 +88,18 @@ object Controls {
         if (IslandBus.focus.value == "timer") collapse()
     }
 
+    /** +1 минута к таймеру; звонящий таймер начинает ещё одну минуту */
+    fun addTimerMinute() {
+        val t = IslandBus.timer.value ?: return
+        val now = SystemClock.elapsedRealtime()
+        val paused = t.pausedLeft
+        IslandBus.timer.value = when {
+            t.ringing -> TimerState(60_000, now + 60_000)
+            paused != null -> t.copy(totalMs = t.totalMs + 60_000, pausedLeft = paused + 60_000)
+            else -> t.copy(totalMs = t.totalMs + 60_000, endAt = t.endAt + 60_000)
+        }
+    }
+
     // Секундомер
 
     fun startStopwatch() {
