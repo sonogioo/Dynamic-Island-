@@ -6,6 +6,9 @@ package com.akira.island.core
  */
 internal object Italian {
     val words: Map<String, String> = hashMapOf(
+        "Snooze" to "Posponi",
+        "Breathing" to "Respiro",
+        "The empty island glows softly while charging and on the lock screen" to "L'isola vuota si illumina dolcemente in carica e sulla schermata di blocco",
         "1 min" to "1 min",
         "New message" to "Nuovo messaggio",
         "Hide the text" to "Nascondi il testo",
