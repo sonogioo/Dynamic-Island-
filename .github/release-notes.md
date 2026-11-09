@@ -10,6 +10,8 @@ Versione modificata di Dynamic Island 1.6.5 (fork di Akira9021/Dynamic-Island-).
 - **Colore della copertina** nel lettore aperto (Aspetto → Bagliore, disattivabile)
 - **Nascondi il testo** dei messaggi: solo il nome e “Nuovo messaggio” (Funzioni → Notifiche)
 - **S Pen**: avviso quando la estrai o la reinserisci (Funzioni → Eventi)
+- **Sveglia che suona**: Posponi e Ferma direttamente nell'isola
+- **Isola che respira**: l'isola vuota si illumina dolcemente in carica e sulla schermata di blocco (Aspetto → Bagliore, spento di default)
 
 ## Già incluso
 - Banner più simile a iOS, testo non in grassetto fino a 4 righe
