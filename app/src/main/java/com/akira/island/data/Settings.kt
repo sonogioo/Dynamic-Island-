@@ -351,6 +351,25 @@ object SettingsRepo {
 
     fun reset() = update { IslandSettings() }
 
+    /** Все настройки одним JSON — «Экспорт настроек» */
+    fun exportJson(): String = json.encodeToString(current)
+
+    /**
+     * «Импорт настроек» из файла экспорта. Служебное (проверка обновлений, «Что нового») остаётся как есть.
+     * false — в файле не настройки острова.
+     */
+    fun importJson(raw: String): Boolean {
+        if ("\"cardMedia\"" !in raw) return false
+        val s = runCatching { json.decodeFromString<IslandSettings>(raw) }.getOrNull() ?: return false
+        update {
+            s.copy(
+                skippedVersion = skippedVersion, lastSeenVersion = lastSeenVersion,
+                lastUpdateCheck = lastUpdateCheck, islandVersion = islandVersion,
+            )
+        }
+        return true
+    }
+
     fun resetAnimations() = update {
         val d = IslandSettings()
         copy(
