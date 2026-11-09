@@ -113,7 +113,9 @@ data class IslandSettings(
     val cardCharging: Boolean = true,
     val cardCall: Boolean = true,
     /** Звонки самого телефона (звонилка). Выключено — в острове только звонки мессенджеров */
-    val cardPhoneCall: Boolean = false,
+    val cardPhoneCall: Boolean = true,
+    /** Пока звонит входящий звонок телефона, остров прячется: у Samsung своё окно звонка */
+    val hidePhoneRinging: Boolean = true,
     val cardMessages: Boolean = true,
     /** Кнопки «Ответить» и «Пометить прочитанным» в карточке уведомления */
     val msgActions: Boolean = true,
