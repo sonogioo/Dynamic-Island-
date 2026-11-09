@@ -6,6 +6,14 @@ package com.akira.island.core
  */
 internal object Italian {
     val words: Map<String, String> = hashMapOf(
+        "Export settings" to "Esporta impostazioni",
+        "Save everything to a file to restore it after reinstalling" to "Salva tutto in un file per ripristinarlo dopo una reinstallazione",
+        "Import settings" to "Importa impostazioni",
+        "Load the settings from a saved file" to "Carica le impostazioni da un file salvato",
+        "Settings saved" to "Impostazioni salvate",
+        "Couldn't save the file" to "Impossibile salvare il file",
+        "Settings restored" to "Impostazioni ripristinate",
+        "This file doesn't contain island settings" to "Questo file non contiene impostazioni dell'isola",
         "12 hours before an alarm — the wake-up time and a sleep dial, like on iPhone" to "12 ore prima della sveglia: l'orario e un quadrante del sonno, come su iPhone",
         "A check mark and the amount — from the wallet screen, a notification or a bank SMS" to "Una spunta e l'importo, dalla schermata del wallet, da una notifica o da un SMS della banca",
         "A lock opens when you unlock the phone" to "Un lucchetto si apre quando sblocchi il telefono",
