@@ -6,6 +6,10 @@ package com.akira.island.core
  */
 internal object Italian {
     val words: Map<String, String> = hashMapOf(
+        "Phone calls" to "Chiamate del telefono",
+        "Regular phone calls. Off: only WhatsApp, Telegram and other app calls" to "Le normali chiamate telefoniche. Se disattivato: solo le chiamate di WhatsApp, Telegram e altre app",
+        "Hide while it rings" to "Nascondi mentre squilla",
+        "Incoming phone call: the island hides while Samsung's call window is showing and comes back when it goes away" to "Chiamata in arrivo dal telefono: l'isola si nasconde finché c'è la finestra di chiamata di Samsung e ricompare quando sparisce",
         "Snooze" to "Posponi",
         "Breathing" to "Respiro",
         "The empty island glows softly while charging and on the lock screen" to "L'isola vuota si illumina dolcemente in carica e sulla schermata di blocco",
