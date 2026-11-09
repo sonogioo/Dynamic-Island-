@@ -62,6 +62,9 @@ import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.HeartBroken
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Screenshot
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.MicOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -124,7 +127,17 @@ fun ExpandedContent(act: Act, s: IslandSettings, lyrics: Lyrics?, battery: Batte
         return
     }
     // Сверху — полоса камеры: содержимое начинается ниже выреза, чтобы он ничего не закрывал
-    Box(Modifier.width(width).padding(start = 22.dp, end = 22.dp, top = cameraInset(s), bottom = 20.dp)) {
+    // Плеер: мягкий отсвет цвета обложки сверху, как в плеере iPhone
+    val tint = if (act is Act.MediaA && s.musicTint && !s.reduceEffects) act.m.accent else null
+    Box(
+        Modifier.width(width)
+            .then(
+                if (tint != null) Modifier.clip(RoundedCornerShape(32.dp))
+                    .background(Brush.verticalGradient(listOf(tint.copy(alpha = 0.34f), Color.Transparent)))
+                else Modifier,
+            )
+            .padding(start = 22.dp, end = 22.dp, top = cameraInset(s), bottom = 20.dp),
+    ) {
         when (act) {
             is Act.MediaA -> MediaExpanded(act.m, s, lyrics)
             is Act.TimerA -> TimerExpanded(act.t, s)
@@ -257,6 +270,14 @@ private fun CallExpanded(c: CallInfo) {
                 overflow = TextOverflow.Ellipsis)
             Text(formatDuration(now - c.base), color = Tints.Green, fontSize = 15.sp, style = Digits)
         }
+        c.mute?.let { pi ->
+            RoundButton(Icons.Rounded.MicOff, size = 44.dp, bg = Color.White.copy(alpha = 0.2f), iconScale = 0.5f) { Controls.send(context, pi) }
+            Spacer(Modifier.width(8.dp))
+        }
+        c.speaker?.let { pi ->
+            RoundButton(Icons.AutoMirrored.Rounded.VolumeUp, size = 44.dp, bg = Color.White.copy(alpha = 0.2f), iconScale = 0.5f) { Controls.send(context, pi) }
+            Spacer(Modifier.width(8.dp))
+        }
         RoundButton(Ios.call, size = 48.dp, bg = Tints.Red, iconScale = 0.46f, iconRotation = 135f) {
             Controls.endCall(context, c)
         }
@@ -362,6 +383,8 @@ private fun TimerExpanded(t: TimerState, s: IslandSettings) {
                 Text(tr("Таймер", "Timer"), color = Tints.Orange, fontSize = 15.sp)
                 Text(tr("Время вышло", "Time's up"), color = Tints.Orange, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
             }
+            PillButton(Icons.Rounded.Add, tr("1 мин", "1 min"), bg = Color.White.copy(alpha = 0.2f)) { Controls.addTimerMinute() }
+            Spacer(Modifier.width(8.dp))
             PillButton(Ios.stop, tr("Стоп", "Stop"), bg = Tints.Orange, fg = Color.Black) { Controls.cancelTimer() }
         }
         return
@@ -375,10 +398,12 @@ private fun TimerExpanded(t: TimerState, s: IslandSettings) {
         }
         Spacer(Modifier.width(12.dp))
         RoundButton(Ios.close, size = 50.dp, bg = Color.White.copy(alpha = 0.2f), iconScale = 0.44f) { Controls.cancelTimer() }
+        Spacer(Modifier.width(12.dp))
+        RoundButton(Icons.Rounded.Add, size = 50.dp, bg = Color.White.copy(alpha = 0.2f), iconScale = 0.46f) { Controls.addTimerMinute() }
         Spacer(Modifier.weight(1f))
         Text(if (t.paused) tr("Пауза", "Paused") else tr("Таймер", "Timer"), color = color, fontSize = 15.sp, modifier = Modifier.padding(top = 14.dp))
         Spacer(Modifier.width(8.dp))
-        Text(formatDuration(left + 999), color = color, fontSize = 44.sp, style = Digits.copy(fontWeight = FontWeight.Normal), maxLines = 1)
+        Text(formatDuration(left + 999), color = color, fontSize = 38.sp, style = Digits.copy(fontWeight = FontWeight.Normal), maxLines = 1)
     }
 }
 
