@@ -1,6 +1,7 @@
 package com.akira.island.ui.screens
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Dialpad
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bedtime
@@ -40,9 +41,13 @@ fun CardsScreen(onBack: () -> Unit, onInstruction: () -> Unit) {
             GroupToggle(Pos.First, Icons.Outlined.PlayCircle, tr("Управление проигрывателем", "Player controls"),
                 tr("Когда играет музыка и плеер свёрнут", "When music is playing and the player is in the background"),
                 s.cardMedia, color = Tile.Pink) { set { copy(cardMedia = it) } }
-            GroupToggle(Pos.Last, Icons.Rounded.Call, tr("Звонки", "Calls"),
+            GroupToggle(Pos.Middle, Icons.Rounded.Call, tr("Звонки", "Calls"),
                 tr("Входящий вызов с кнопками ответа и время разговора", "Incoming calls with answer buttons, and the call time"),
                 s.cardCall, color = Tile.Green) { set { copy(cardCall = it) } }
+            GroupToggle(Pos.Last, Icons.Rounded.Dialpad, tr("Звонки телефона", "Phone calls"),
+                tr("Обычные звонки по сети. Выключено — только звонки WhatsApp, Telegram и других приложений: у Samsung своё окно звонка",
+                    "Regular phone calls. Off: only WhatsApp, Telegram and other app calls, since Samsung shows its own call window"),
+                s.cardPhoneCall, color = Tile.Green) { set { copy(cardPhoneCall = it) } }
         }
 
         SectionHeader(tr("Таймеры и будильник", "Timers and alarm"))
