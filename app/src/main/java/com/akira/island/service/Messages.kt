@@ -1,5 +1,6 @@
 package com.akira.island.service
 
+import com.akira.island.core.tr
 import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationManager
@@ -144,14 +145,15 @@ object Messages {
             key = sbn.key,
             pkg = sbn.packageName,
             appName = appName,
-            text = text,
+            // «Скрывать текст»: только имя и «Новое сообщение»
+            text = if (s.msgHideText) tr("Новое сообщение", "New message") else text,
             avatar = avatar,
             appIcon = NotificationParser.icon(service, sbn.packageName),
             intent = n.contentIntent,
             actions = actions,
             // Разбор палитры нужен только для цвета кнопок «Из аватара»
             accent = if (s.accentMode == AccentMode.ADAPTIVE) accentOf(avatar ?: NotificationParser.icon(service, sbn.packageName)) else null,
-            history = history(ex),
+            history = if (s.msgHideText) emptyList() else history(ex),
             sensitive = sensitive,
         )
         IslandBus.post(
