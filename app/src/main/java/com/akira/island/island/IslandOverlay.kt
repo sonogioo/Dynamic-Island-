@@ -218,7 +218,8 @@ fun IslandOverlay(
             else -> fromApp.copy(
                 incoming = tel.incoming,
                 base = if (!tel.incoming && fromApp.incoming) tel.base else fromApp.base,
-                avatar = fromApp.avatar ?: tel.avatar,
+                // Фото из контактов (у телефона) надёжнее значка звонилки, который бывает просто буквой
+                avatar = tel.avatar ?: fromApp.avatar,
             )
         }
     }

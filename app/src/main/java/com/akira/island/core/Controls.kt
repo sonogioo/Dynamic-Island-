@@ -175,10 +175,16 @@ object Controls {
             collapse()
             return
         }
-        if (send(context, if (call.incoming) call.decline else call.hangUp)) return
-        val ok = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+        // Сначала системный сервис звонков: он кладёт трубку всегда, когда дано разрешение «Звонки».
+        // Кнопки из уведомления у многих звонилок (Samsung, Xiaomi) срабатывают без ошибки, но ничего не делают
+        val telecomOk = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+            context.checkSelfPermission(android.Manifest.permission.ANSWER_PHONE_CALLS) == android.content.pm.PackageManager.PERMISSION_GRANTED &&
             runCatching { context.getSystemService(TelecomManager::class.java)!!.endCall() }.getOrDefault(false)
-        if (!ok) showCallScreen(context, call)
+        if (telecomOk) return
+        val primary = if (call.incoming) call.decline else call.hangUp
+        val secondary = if (call.incoming) call.hangUp else call.decline
+        if (send(context, primary) || (secondary !== primary && send(context, secondary))) return
+        showCallScreen(context, call)
     }
 
     /**
