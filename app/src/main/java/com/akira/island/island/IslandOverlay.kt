@@ -111,6 +111,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sqrt
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.RepeatMode
 
 /** Пример активности для подбора ширины: стрелка направо и «300 м». */
 private val WidthDemo = com.akira.island.core.LiveInfo(
@@ -219,12 +222,15 @@ fun IslandOverlay(
     }
     // Смахнутый входящий не показываем, пока звонит (сбрасывает служба, когда звонить перестали)
     val callHidden by IslandBus.callHidden.collectAsState()
+    val ringingAlarm by IslandBus.ringingAlarm.collectAsState()
     val acts = buildList {
         // Входящий звонок важнее всего, как на iPhone
         if (call != null && call.incoming && !callHidden) add(Act.CallA(call))
         notice?.let { add(Act.NoticeA(it)) }
 
         val persistent = mutableListOf<Act>()
+        // Звонящий будильник главнее всего, кроме входящего звонка
+        ringingAlarm?.let { if (s.cardAlarm) persistent += Act.RingingAlarmA(it) }
         val t = timer
         if (t != null && t.ringing) persistent += Act.TimerA(t)
         // Оплата телефоном — пока ждём терминал, она главнее остального
@@ -244,7 +250,8 @@ fun IslandOverlay(
         if (s.cardAlarm && alarm != null && alarm.triggerAt - alarmNow in 1..ALARM_LEAD_MS) persistent += Act.AlarmA(alarm)
 
         // Выбранная активность выходит вперёд, но звонящий таймер всегда главный
-        val ringing = (persistent.firstOrNull() as? Act.TimerA)?.t?.ringing == true || call?.incoming == true
+        val ringing = (persistent.firstOrNull() as? Act.TimerA)?.t?.ringing == true || call?.incoming == true ||
+            persistent.firstOrNull() is Act.RingingAlarmA
         val i = persistent.indexOfFirst { it.id == focus }
         if (i > 0 && !ringing) persistent.add(0, persistent.removeAt(i))
         addAll(persistent)
@@ -470,6 +477,14 @@ private fun IslandBody(
     val glowOn = s.fxGlow && !s.reduceEffects && !calibrating && playingArt != null
     val glowAlpha by animateFloatAsState(if (glowOn) 1f else 0f, tween(500), label = "glowAlpha")
     val glowTint by animateColorAsState(lastArt[0], tween(500), label = "glowTint")
+    // «Дыхание»: пустой остров на зарядке или на экране блокировки мягко светится и гаснет
+    val keyguardOn by IslandBus.keyguard.collectAsState()
+    val breathOn = s.idleBreath && !s.reduceEffects && !calibrating && primary is Act.Idle && (battery.charging || keyguardOn)
+    val breathTint = if (battery.charging) Tints.Green else Color.White
+    val breathAlpha = if (breathOn) {
+        val breath = rememberInfiniteTransition(label = "breath")
+        breath.animateFloat(0.12f, 0.55f, infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "breathAlpha").value
+    } else 0f
 
     // «Как фрукт»: при раскрытии остров сплющивается и отпружинивает
     val jellyX = remember { Animatable(1f) }
@@ -532,6 +547,7 @@ private fun IslandBody(
                 transformOrigin = TransformOrigin(0.5f, 0f)
             }
             .then(if (glowAlpha > 0f) Modifier.drawBehind { islandGlow(glowTint, glowAlpha, corner.value.toPx(), s.notch) } else Modifier)
+            .then(if (glowAlpha <= 0f && breathAlpha > 0f) Modifier.drawBehind { islandGlow(breathTint, breathAlpha, corner.value.toPx(), s.notch) } else Modifier)
             // Тень и обрезка по форме — одним слоем; форма на каждом кадре берётся из анимации скругления
             .graphicsLayer {
                 this.shape = islandShape(corner.value, s.notch)
