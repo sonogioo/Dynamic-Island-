@@ -61,7 +61,8 @@ sealed interface DownloadState {
  * поэтому APK ставится поверх.
  */
 object UpdateChecker {
-    const val REPO = "Akira9021/Dynamic-Island-"
+    // Fork con le modifiche: le versioni ufficiali hanno un'altra firma e non si installano sopra
+    const val REPO = "sonogioo/Dynamic-Island-"
     private const val CHECK_EVERY_MS = 3 * 60 * 60 * 1000L
 
     val state = MutableStateFlow<UpdateState>(UpdateState.Idle)
@@ -314,7 +315,9 @@ object UpdateChecker {
             val b = l.getOrElse(i) { 0 }
             if (a != b) return a > b
         }
-        return false
+        // Версии форка: 1.6.5-fix5 новее 1.6.5-fix4
+        fun fix(v: String) = Regex("fix(\\d+)").find(v)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        return fix(remote) > fix(local)
     }
 }
 
