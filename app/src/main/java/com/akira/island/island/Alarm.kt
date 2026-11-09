@@ -64,6 +64,13 @@ import java.util.Date
 import kotlin.math.cos
 import kotlin.math.roundToLong
 import kotlin.math.sin
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Snooze
+import com.akira.island.core.RingingAlarm
 
 /** Будильник оранжевый, как на iPhone; ночь — индиго, как в «Режиме сна» */
 val AlarmTint = Tints.Orange
@@ -316,4 +323,71 @@ fun AlarmBanner(n: Notice, a: AlarmInfo, s: IslandSettings, wideWidth: Dp) {
                 fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
+}
+
+/** Звонящий будильник в капсуле: будильник слева, справа кнопки «Отложить» и «Выключить». */
+@Composable
+fun RingingAlarmCompact(r: RingingAlarm, s: IslandSettings) {
+    val context = LocalContext.current
+    val h = activeHeight(s)
+    CompactRow(h, compactGap(s), sideMax(s) * 2f,
+        left = { Icon(Ios.alarm, null, tint = AlarmTint, modifier = Modifier.size(h * 0.5f)) },
+        right = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val snooze = r.snooze
+                if (snooze != null) {
+                    RoundButton(Icons.Rounded.Snooze, size = h * 0.78f, bg = AlarmTint.copy(alpha = 0.25f), fg = AlarmTint, iconScale = 0.6f) {
+                        Controls.send(context, snooze)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                }
+                RoundButton(Ios.close, size = h * 0.78f, bg = Color.White.copy(alpha = 0.2f), iconScale = 0.5f) { stopAlarm(context, r) }
+            }
+        },
+    )
+}
+
+/** Раскрытый звонящий будильник: время и две большие кнопки, как на iPhone. */
+@Composable
+fun RingingAlarmExpanded(r: RingingAlarm) {
+    val context = LocalContext.current
+    val now = rememberWallNow(1_000)
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Ios.alarm, null, tint = AlarmTint, modifier = Modifier.size(30.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(r.title, color = Color.White.copy(alpha = 0.55f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(now)),
+                    color = Color.White, fontSize = 36.sp, style = Digits.copy(fontWeight = FontWeight.Normal), maxLines = 1)
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            val snooze = r.snooze
+            if (snooze != null) {
+                AlarmButton(tr("Отложить", "Snooze"), AlarmTint.copy(alpha = 0.25f), AlarmTint, Modifier.weight(1f)) {
+                    Controls.send(context, snooze)
+                }
+            }
+            AlarmButton(tr("Выключить", "Stop"), Color.White.copy(alpha = 0.2f), Color.White, Modifier.weight(1f)) {
+                stopAlarm(context, r)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlarmButton(text: String, bg: Color, fg: Color, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.height(52.dp).clip(RoundedCornerShape(26.dp)).background(bg).clickable { onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, color = fg, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+    }
+}
+
+/** «Выключить» из уведомления; если такой кнопки нет — открываем экран будильника */
+private fun stopAlarm(context: Context, r: RingingAlarm) {
+    if (!Controls.send(context, r.dismiss)) Controls.send(context, r.open)
 }
