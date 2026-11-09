@@ -1,6 +1,7 @@
 package com.akira.island.ui.screens
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.Dialpad
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -44,10 +45,14 @@ fun CardsScreen(onBack: () -> Unit, onInstruction: () -> Unit) {
             GroupToggle(Pos.Middle, Icons.Rounded.Call, tr("Звонки", "Calls"),
                 tr("Входящий вызов с кнопками ответа и время разговора", "Incoming calls with answer buttons, and the call time"),
                 s.cardCall, color = Tile.Green) { set { copy(cardCall = it) } }
-            GroupToggle(Pos.Last, Icons.Rounded.Dialpad, tr("Звонки телефона", "Phone calls"),
-                tr("Обычные звонки по сети. Выключено — только звонки WhatsApp, Telegram и других приложений: у Samsung своё окно звонка",
-                    "Regular phone calls. Off: only WhatsApp, Telegram and other app calls, since Samsung shows its own call window"),
+            GroupToggle(Pos.Middle, Icons.Rounded.Dialpad, tr("Звонки телефона", "Phone calls"),
+                tr("Обычные звонки по сети. Выключено — только звонки WhatsApp, Telegram и других приложений",
+                    "Regular phone calls. Off: only WhatsApp, Telegram and other app calls"),
                 s.cardPhoneCall, color = Tile.Green) { set { copy(cardPhoneCall = it) } }
+            GroupToggle(Pos.Last, Icons.Rounded.VisibilityOff, tr("Прятать, пока звонит", "Hide while it rings"),
+                tr("Входящий звонок телефона: остров прячется, пока видно окно звонка Samsung, и возвращается, когда оно уходит",
+                    "Incoming phone call: the island hides while Samsung's call window is showing and comes back when it goes away"),
+                s.hidePhoneRinging, color = Tile.Gray) { set { copy(hidePhoneRinging = it) } }
         }
 
         SectionHeader(tr("Таймеры и будильник", "Timers and alarm"))
