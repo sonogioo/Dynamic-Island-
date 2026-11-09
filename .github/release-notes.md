@@ -5,6 +5,11 @@ Versione modificata di Dynamic Island 1.6.5 (fork di Akira9021/Dynamic-Island-).
 - **Esporta / Importa impostazioni** (Funzioni → Generali): salva tutto in un file e lo ricarica dopo una reinstallazione
 - **Aggiornamenti dal fork**: l'app controlla le nuove versioni qui, non più su quelle ufficiali
 - **Chiamate Samsung**: la chiamata dal telefono non compare più doppia nell'isola
+- **Muto e Vivavoce** nell'isola aperta durante una chiamata, quando l'app Telefono li mette nella sua notifica
+- **Timer +1 min**: nell'isola aperta, anche quando il timer suona
+- **Colore della copertina** nel lettore aperto (Aspetto → Bagliore, disattivabile)
+- **Nascondi il testo** dei messaggi: solo il nome e “Nuovo messaggio” (Funzioni → Notifiche)
+- **S Pen**: avviso quando la estrai o la reinserisci (Funzioni → Eventi)
 
 ## Già incluso
 - Banner più simile a iOS, testo non in grassetto fino a 4 righe
