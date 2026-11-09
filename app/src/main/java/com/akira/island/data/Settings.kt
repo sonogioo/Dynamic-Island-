@@ -146,6 +146,8 @@ data class IslandSettings(
     /** На экране блокировки в капсуле замок; после разблокировки он уходит */
     val evLock: Boolean = true,
     val evDnd: Boolean = true,
+    /** S Pen вынули или вставили (Samsung) */
+    val evSPen: Boolean = true,
     /** Экран оплаты телефоном (T-Pay, SberPay, Mir Pay, Google Кошелёк…) — «Оплата · К терминалу» */
     val evPayReady: Boolean = true,
     /** «К терминалу» сразу при открытии банка или кошелька, а не только на экране оплаты телефоном */
@@ -223,6 +225,8 @@ data class IslandSettings(
     val fxRate: FxRate = FxRate.SMOOTH,
     /** Мягкое свечение цвета обложки вокруг острова, пока играет музыка */
     val fxGlow: Boolean = false,
+    /** Раскрытый плеер с отсветом цвета обложки */
+    val musicTint: Boolean = true,
     /** Волны NFC вокруг острова, пока ждём терминал, и вспышка с искрами, когда оплата прошла */
     val fxPay: Boolean = true,
     /** Капсула вздрагивает при смене режима звука, колокольчик звонящего таймера качается */
@@ -264,6 +268,8 @@ data class IslandSettings(
     val msgLines: Int = 4,
     /** Уведомления приложения, которое сейчас открыто, тоже приходят в остров */
     val msgInApp: Boolean = false,
+    /** Не показывать текст сообщений — только «Новое сообщение» */
+    val msgHideText: Boolean = false,
     /** Мессенджеры, чьи сообщения уже были в острове, и канал их уведомлений — для «Системных плашек» */
     val msgChannels: Map<String, String> = emptyMap(),
     /** Подсказку «Уведомления приходят дважды?» на главной убрали */
