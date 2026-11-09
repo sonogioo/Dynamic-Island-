@@ -112,6 +112,8 @@ data class IslandSettings(
     val cardTimer: Boolean = true,
     val cardCharging: Boolean = true,
     val cardCall: Boolean = true,
+    /** Звонки самого телефона (звонилка). Выключено — в острове только звонки мессенджеров */
+    val cardPhoneCall: Boolean = false,
     val cardMessages: Boolean = true,
     /** Кнопки «Ответить» и «Пометить прочитанным» в карточке уведомления */
     val msgActions: Boolean = true,
