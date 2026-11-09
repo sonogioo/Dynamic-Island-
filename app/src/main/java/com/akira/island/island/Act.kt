@@ -9,6 +9,7 @@ import com.akira.island.core.MediaInfo
 import com.akira.island.core.Notice
 import com.akira.island.core.PayReady
 import com.akira.island.core.ProgressInfo
+import com.akira.island.core.RingingAlarm
 import com.akira.island.core.StopwatchState
 import com.akira.island.core.TimerState
 import com.akira.island.core.TorchState
@@ -44,5 +45,9 @@ sealed class Act(val id: String, val transient: Boolean = false) {
     }
     data class AlarmA(val a: AlarmInfo) : Act("alarm") {
         override val pkg: String? get() = a.pkg
+    }
+    /** Звонящий будильник: «Отложить» и «Выключить» прямо в острове */
+    data class RingingAlarmA(val r: RingingAlarm) : Act("ringing-alarm") {
+        override val pkg: String get() = r.pkg
     }
 }
