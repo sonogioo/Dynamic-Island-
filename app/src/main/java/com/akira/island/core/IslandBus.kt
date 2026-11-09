@@ -45,6 +45,8 @@ object IslandBus {
     val nextAlarm = MutableStateFlow<AlarmInfo?>(null)
     /** Звонящие будильники и таймеры других приложений («Часы»): ключи их уведомлений */
     val ringingAlarms = MutableStateFlow<Set<String>>(emptySet())
+    /** Звонящий будильник с кнопками «Отложить» и «Выключить» — для острова */
+    val ringingAlarm = MutableStateFlow<RingingAlarm?>(null)
     val torch = MutableStateFlow(TorchState())
     val timer = MutableStateFlow<TimerState?>(null)
     val stopwatch = MutableStateFlow<StopwatchState?>(null)
