@@ -87,6 +87,8 @@ class CallMonitor(private val context: Context, private val scope: CoroutineScop
     }
 
     private fun put(c: CallInfo) {
+        // Звонилка Samsung присылает и своё уведомление о звонке — второй капсулы не нужно
+        if (IslandBus.calls.value.values.any { isSamsungDialer(it.pkg) }) return
         IslandBus.calls.value = IslandBus.calls.value + (KEY to c)
     }
 
@@ -121,5 +123,8 @@ class CallMonitor(private val context: Context, private val scope: CoroutineScop
 
     companion object {
         const val KEY = "telephony"
+
+        /** Звонилка Samsung (com.samsung.android.incallui, com.samsung.android.dialer…) */
+        fun isSamsungDialer(pkg: String): Boolean = pkg.startsWith("com.samsung.")
     }
 }
