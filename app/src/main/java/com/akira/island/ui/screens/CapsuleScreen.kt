@@ -13,6 +13,7 @@ import androidx.compose.material.icons.rounded.BubbleChart
 import androidx.compose.material.icons.rounded.Contactless
 import androidx.compose.material.icons.rounded.Flare
 import androidx.compose.material.icons.rounded.Gradient
+import androidx.compose.material.icons.rounded.Air
 import androidx.compose.material.icons.rounded.FormatColorFill
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.LineWeight
@@ -248,6 +249,9 @@ fun EffectsScreen(onBack: () -> Unit) {
             GroupToggle(Pos.Middle, Icons.Rounded.Gradient, tr("Цвет обложки в плеере", "Artwork color in the player"),
                 tr("Раскрытый плеер с мягким отсветом цвета обложки", "The expanded player with a soft tint of the artwork's color"),
                 s.musicTint, color = Tile.Pink) { v -> SettingsRepo.update { copy(musicTint = v) } }
+            GroupToggle(Pos.Middle, Icons.Rounded.Air, tr("Дыхание", "Breathing"),
+                tr("Пустой остров мягко светится на зарядке и на экране блокировки", "The empty island glows softly while charging and on the lock screen"),
+                s.idleBreath, color = Tile.Teal) { v -> SettingsRepo.update { copy(idleBreath = v) } }
             GroupToggle(Pos.Last, Icons.Rounded.Contactless, tr("Волны оплаты", "Payment waves"),
                 tr("Волны NFC вокруг острова, пока ждём терминал, и вспышка с искрами на «Оплачено»",
                     "NFC waves around the island while waiting for the reader, and a burst of sparks on Paid"),
