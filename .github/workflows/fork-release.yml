@@ -1,95 +1,72 @@
 name: Release del fork
 
-# Compila l'APK dal branch delle modifiche, lo firma e pubblica la release indicata in TAG.
-# Se la release con quel tag esiste già non fa nulla: per una nuova versione cambia TAG.
+# Avvio a mano: Actions → "Release del fork" → Run workflow, sul branch fix/oneui-notifiche-whatsapp,
+# con il tag della nuova versione (es. v1.6.5-fix5). Le note sono in .github/release-notes.md.
+# La chiave di firma è sempre la stessa (.github/fork-key.p12, protetta dal segreto FORK_KEYSTORE_PASSWORD):
+# così ogni versione si installa sopra la precedente senza perdere le impostazioni.
 on:
-  push:
-    branches: ["fix/oneui-notifiche-whatsapp"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag della release (es. v1.6.5-fix5)"
+        required: true
 
 permissions:
   contents: write
 
-env:
-  TAG: v1.6.5-fix4
-
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+      KS_PASS: ${{ secrets.FORK_KEYSTORE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - name: Release già pubblicata?
-        id: check
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Controlli
         run: |
-          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
+          if [[ ! "$TAG" =~ ^v[0-9A-Za-z.\-]+$ ]]; then echo "::error::Tag non valido: $TAG"; exit 1; fi
+          if [[ -z "$KS_PASS" ]]; then echo "::error::Manca il segreto FORK_KEYSTORE_PASSWORD"; exit 1; fi
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then echo "::error::La release $TAG esiste già"; exit 1; fi
 
       - uses: actions/setup-java@v4
-        if: steps.check.outputs.skip == 'false'
         with:
           distribution: temurin
           java-version: "17"
 
       - uses: gradle/actions/setup-gradle@v4
-        if: steps.check.outputs.skip == 'false'
 
-      - name: Compilazione
-        if: steps.check.outputs.skip == 'false'
-        run: ./gradlew --no-daemon assembleRelease
-
-      # Chiave dal segreto FORK_KEYSTORE_BASE64 (password FORK_KEYSTORE_PASSWORD, alias island) se c'è,
-      # altrimenti una chiave nuova creata per questa build
-      - name: Firma
-        if: steps.check.outputs.skip == 'false'
-        env:
-          KS_B64: ${{ secrets.FORK_KEYSTORE_BASE64 }}
-          KS_PASS: ${{ secrets.FORK_KEYSTORE_PASSWORD }}
+      # La prima volta crea la chiave e la salva nel repository, cifrata con la password del segreto
+      - name: Chiave di firma
         run: |
-          ks="$RUNNER_TEMP/fork.p12"
-          if [[ -n "$KS_B64" && -n "$KS_PASS" ]]; then
-            printf '%s' "$KS_B64" | base64 -d > "$ks"
-          else
-            KS_PASS=$(openssl rand -hex 16)
+          ks=.github/fork-key.p12
+          if [[ ! -f "$ks" ]]; then
             keytool -genkeypair -keystore "$ks" -storetype PKCS12 -storepass "$KS_PASS" -keypass "$KS_PASS" \
               -alias island -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Dynamic Island fork"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add "$ks"
+            git commit -m "Chiave di firma del fork (protetta da password)"
+            git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_REF_NAME}"
           fi
-          export KS_PASS
+
+      - name: Compilazione
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Firma
+        run: |
           bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           mkdir -p out
+          apk="out/DynamicIsland-${TAG#v}.apk"
           "$bt/zipalign" -f 4 app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/aligned.apk"
-          "$bt/apksigner" sign --ks "$ks" --ks-type PKCS12 --ks-key-alias island \
-            --ks-pass env:KS_PASS --key-pass env:KS_PASS \
-            --out "out/DynamicIsland-${TAG#v}.apk" "$RUNNER_TEMP/aligned.apk"
-          rm -f "$ks"
-          "$bt/apksigner" verify "out/DynamicIsland-${TAG#v}.apk"
+          "$bt/apksigner" sign --ks .github/fork-key.p12 --ks-type PKCS12 --ks-key-alias island \
+            --ks-pass env:KS_PASS --key-pass env:KS_PASS --out "$apk" "$RUNNER_TEMP/aligned.apk"
+          "$bt/apksigner" verify --print-certs "$apk"
 
       - name: Release
-        if: steps.check.outputs.skip == 'false'
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          cat > notes.md <<'EOF'
-          Versione modificata di Dynamic Island 1.6.5 (fork di Akira9021/Dynamic-Island-).
-
-          ## Novità in fix4
-          - **Chiamate Samsung**: la chiamata dal telefono non compare più doppia nell'isola. Resta solo quella con nome, foto e tasti Rispondi / Rifiuta / Chiudi. Le chiamate WhatsApp e delle altre app non cambiano.
-
-          ## Già incluso
-          - Banner più simile a iOS, testo non in grassetto fino a 4 righe
-          - WhatsApp: le chat già ricevute non ricompaiono, i messaggi consecutivi aggiornano la stessa scheda
-          - Gemini e assistenti nell'isola
-          - Timer, cronometro e sveglie Samsung
-          - Live Updates di Android 16
-          - Onde di pagamento più discrete
-          - Lingua italiana
-
-          ## Installazione
-          L'APK è firmato con una chiave diversa da quella delle versioni precedenti: **disinstalla prima la versione installata**, poi installa e riattiva Accessibilità e accesso alle notifiche.
-          EOF
-          sed -i 's/^          //' notes.md
           gh release create "$TAG" out/*.apk -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Dynamic Island ${TAG#v}" --notes-file notes.md --latest
+            --title "Dynamic Island ${TAG#v}" --notes-file .github/release-notes.md --latest
