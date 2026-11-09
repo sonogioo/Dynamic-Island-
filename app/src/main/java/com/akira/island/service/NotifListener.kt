@@ -21,6 +21,7 @@ import com.akira.island.core.ChronoInfo
 import com.akira.island.core.IslandBus
 import com.akira.island.core.LiveKind
 import com.akira.island.core.ProgressInfo
+import com.akira.island.core.RingingAlarm
 import com.akira.island.data.SettingsRepo
 
 /**
@@ -93,6 +94,17 @@ object NotificationParser {
             (n.category == Notification.CATEGORY_ALARM || clockApp && n.category != Notification.CATEGORY_CALL)
         if (ringing != (sbn.key in IslandBus.ringingAlarms.value)) {
             IslandBus.ringingAlarms.value = if (ringing) IslandBus.ringingAlarms.value + sbn.key else IslandBus.ringingAlarms.value - sbn.key
+        }
+        // Кнопки звонящего будильника — чтобы отложить или выключить его прямо в острове
+        if (ringing) {
+            val alarmActions = n.actions.orEmpty()
+            fun pick(words: List<String>): PendingIntent? = alarmActions.firstOrNull { a ->
+                val t = a.title?.toString()?.lowercase().orEmpty()
+                words.any { it in t }
+            }?.actionIntent
+            IslandBus.ringingAlarm.value = RingingAlarm(sbn.key, sbn.packageName, title, pick(SnoozeWords), pick(DismissAlarmWords), n.contentIntent)
+        } else if (IslandBus.ringingAlarm.value?.key == sbn.key) {
+            IslandBus.ringingAlarm.value = null
         }
         IslandBus.calls.value = IslandBus.calls.value.toMutableMap().apply {
             if (call != null) put(sbn.key, call) else remove(sbn.key)
@@ -251,6 +263,7 @@ object NotificationParser {
         if (key in IslandBus.chrono.value) IslandBus.chrono.value = IslandBus.chrono.value - key
         if (key in IslandBus.live.value) IslandBus.live.value = IslandBus.live.value - key
         if (key in IslandBus.ringingAlarms.value) IslandBus.ringingAlarms.value = IslandBus.ringingAlarms.value - key
+        if (IslandBus.ringingAlarm.value?.key == key) IslandBus.ringingAlarm.value = null
     }
 
     fun icon(context: Context, pkg: String): ImageBitmap? = icons.getOrPut(pkg) {
@@ -362,4 +375,13 @@ private val MuteWords = listOf(
 )
 private val SpeakerWords = listOf(
     "speaker", "vivavoce", "altoparlante", "динамик", "громк", "altavoz", "alto-falante", "lautsprecher", "haut-parleur", "hoparlör",
+)
+
+/** Кнопки звонящего будильника «Часов» */
+private val SnoozeWords = listOf(
+    "отлож", "повтор", "snooze", "posponi", "rimanda", "ripeti", "posponer", "aplazar", "adiar", "soneca", "schlummer", "répéter", "ertele",
+)
+private val DismissAlarmWords = listOf(
+    "выключ", "отклон", "стоп", "dismiss", "stop", "turn off", "ferma", "disattiva", "ignora", "chiudi", "descartar", "detener", "parar",
+    "desativar", "beenden", "aus", "arrêt", "kapat",
 )
