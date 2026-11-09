@@ -166,10 +166,15 @@ object NotificationParser {
             null
         }
         val name = person?.name?.toString()?.takeIf { it.isNotBlank() } ?: title
-        val avatar = runCatching {
-            val icon = person?.icon ?: n.getLargeIcon()
-            icon?.loadDrawable(context)?.toBitmap(128, 128)?.asImageBitmap()
+        fun load(icon: android.graphics.drawable.Icon?) = runCatching {
+            icon?.loadDrawable(context)?.toBitmap(192, 192)?.asImageBitmap()
         }.getOrNull()
+        val contacts = CallMonitor.granted(context)
+        // Настоящее фото из контактов — первым: у многих звонилок значок уведомления — просто буква на круге
+        val avatar = (if (contacts) CallMonitor.photoByUri(context, person?.uri) else null)
+            ?: (if (contacts) CallMonitor.photoByName(context, name) else null)
+            ?: load(person?.icon)
+            ?: load(n.getLargeIcon())
         return CallInfo(
             key = sbn.key,
             pkg = sbn.packageName,
@@ -276,10 +281,10 @@ private val AnswerWords = listOf(
 )
 private val DeclineWords = listOf(
     "отклон", "сброс", "decline", "reject", "dismiss", "từ chối", "tolak", "rechazar", "recusar", "rejeitar", "ปฏิเสธ",
-    "reddet", "ablehnen", "refuser", "rifiuta", "odrzuć", "відхилити", "tanggihan", "拒接", "拒絕", "拒否", "거절",
+    "reddet", "ablehnen", "refuser", "rifiuta", "ignora", "odrzuć", "відхилити", "tanggihan", "拒接", "拒絕", "拒否", "거절",
 )
 private val HangUpWords = listOf(
     "заверш", "положить", "hang", "end call", "kết thúc", "gác máy", "akhiri", "colgar", "finalizar", "desligar",
-    "encerrar", "วางสาย", "kapat", "auflegen", "beenden", "raccrocher", "riaggancia", "zakończ", "завершити", "ibaba",
+    "encerrar", "วางสาย", "kapat", "auflegen", "beenden", "raccrocher", "riaggancia", "termina", "chiudi chiamata", "attacca", "zakończ", "завершити", "ibaba",
     "挂断", "掛斷", "終了", "종료",
 )

@@ -97,16 +97,27 @@ object Messages {
         if (replied != null && SystemClock.elapsedRealtime() - replied < 5_000) return
         val title = (ex.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)
             ?: ex.getCharSequence(Notification.EXTRA_TITLE))?.toString()?.trim().orEmpty()
+        // Полный текст важнее краткого: у многих приложений EXTRA_TEXT — лишь «Новое сообщение» / «2 новых сообщения»,
+        // а само сообщение лежит в BigText или в строках InboxStyle
+        fun cs(k: String) = ex.getCharSequence(k)?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+        val lines = ex.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
+            ?.mapNotNull { it?.toString()?.trim()?.takeIf(String::isNotEmpty) }.orEmpty()
         val text = lastMessage(ex)
-            ?: (ex.getCharSequence(Notification.EXTRA_TEXT) ?: ex.getCharSequence(Notification.EXTRA_BIG_TEXT))?.toString()?.trim()
+            ?: cs(Notification.EXTRA_BIG_TEXT)
+            ?: lines.lastOrNull()
+            ?: cs(Notification.EXTRA_TEXT)
             ?: ""
         if (title.isEmpty() && text.isEmpty()) return
 
         val signature = "$title\n$text"
         val previous = shown[sbn.key]
         if (previous == signature) return
+        // Плашка этого уведомления ещё на экране — приложение дописало в него текст (сначала «Новое сообщение»,
+        // через миг само сообщение): обновляем её на месте, а не показываем вторую
+        val current = IslandBus.notice.value
+        val onScreen = current?.message?.key == sbn.key
         // Обновление того же уведомления, которое просит не звенеть повторно
-        if (previous != null && n.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0) return
+        if (!onScreen && previous != null && n.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0) return
         shown[sbn.key] = signature
 
         val avatar = runCatching {
@@ -127,6 +138,10 @@ object Messages {
             history = history(ex),
             sensitive = sensitive,
         )
+        if (onScreen && current != null) {
+            IslandBus.notice.value = current.copy(title = title.ifEmpty { appName }, message = message)
+            return
+        }
         IslandBus.post(
             Notice(
                 title = title.ifEmpty { appName },

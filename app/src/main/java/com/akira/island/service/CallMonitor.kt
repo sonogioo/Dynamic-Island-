@@ -95,20 +95,7 @@ class CallMonitor(private val context: Context, private val scope: CoroutineScop
         if (KEY in IslandBus.calls.value) IslandBus.calls.value = IslandBus.calls.value - KEY
     }
 
-    private fun lookup(num: String): Pair<String, ImageBitmap?>? = runCatching {
-        val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(num))
-        val cols = arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME, ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI)
-        context.contentResolver.query(uri, cols, null, null, null)?.use { c ->
-            if (!c.moveToFirst()) return@use null
-            val name = c.getString(0) ?: return@use null
-            val photo = c.getString(1)?.let { p ->
-                runCatching {
-                    context.contentResolver.openInputStream(Uri.parse(p))?.use { BitmapFactory.decodeStream(it) }?.asImageBitmap()
-                }.getOrNull()
-            }
-            name to photo
-        }
-    }.getOrNull()
+    private fun lookup(num: String): Pair<String, ImageBitmap?>? = contactByNumber(context, num)
 
     private fun format(num: String): String =
         PhoneNumberUtils.formatNumber(num, Locale.getDefault().country) ?: num
@@ -121,5 +108,50 @@ class CallMonitor(private val context: Context, private val scope: CoroutineScop
 
     companion object {
         const val KEY = "telephony"
+
+        /** Имя и фото контакта по номеру. */
+        fun contactByNumber(context: Context, num: String): Pair<String, ImageBitmap?>? = runCatching {
+            val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(num))
+            val cols = arrayOf(ContactsContract.PhoneLookup._ID, ContactsContract.PhoneLookup.DISPLAY_NAME)
+            context.contentResolver.query(uri, cols, null, null, null)?.use { c ->
+                if (!c.moveToFirst()) return@use null
+                val name = c.getString(1) ?: return@use null
+                name to photoById(context, c.getLong(0))
+            }
+        }.getOrNull()
+
+        /** Фото контакта с таким именем — когда звонилка дала только имя, без номера. */
+        fun photoByName(context: Context, name: String): ImageBitmap? = runCatching {
+            if (name.isBlank()) return@runCatching null
+            context.contentResolver.query(
+                ContactsContract.Contacts.CONTENT_URI, arrayOf(ContactsContract.Contacts._ID),
+                "${ContactsContract.Contacts.DISPLAY_NAME} = ?", arrayOf(name), null,
+            )?.use { c -> if (c.moveToFirst()) photoById(context, c.getLong(0)) else null }
+        }.getOrNull()
+
+        /** Фото по ссылке из Person звонилки: «tel:…» или ссылка на контакт. */
+        fun photoByUri(context: Context, uri: String?): ImageBitmap? = runCatching {
+            if (uri.isNullOrBlank()) return@runCatching null
+            val u = Uri.parse(uri)
+            when (u.scheme) {
+                "tel" -> u.schemeSpecificPart?.let { contactByNumber(context, it)?.second }
+                "content" -> {
+                    val contact = runCatching { ContactsContract.Contacts.lookupContact(context.contentResolver, u) }.getOrNull() ?: u
+                    ContactsContract.Contacts.openContactPhotoInputStream(context.contentResolver, contact, true)
+                        ?.use { BitmapFactory.decodeStream(it) }?.asImageBitmap()
+                }
+                else -> null
+            }
+        }.getOrNull()
+
+        /** Большое фото контакта, а если его нет — миниатюра. */
+        private fun photoById(context: Context, id: Long): ImageBitmap? = runCatching {
+            val contact = android.content.ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, id)
+            ContactsContract.Contacts.openContactPhotoInputStream(context.contentResolver, contact, true)
+                ?.use { BitmapFactory.decodeStream(it) }?.asImageBitmap()
+        }.getOrNull()
+
+        fun granted(context: Context): Boolean =
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
     }
 }
