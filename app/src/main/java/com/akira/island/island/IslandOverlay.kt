@@ -207,8 +207,10 @@ fun IslandOverlay(
         .let { list -> list + screenNav.values.filter { sn -> sn.distance != null && list.none { it.pkg == sn.pkg } }.map(NavScreen::synthetic) }
 
     val call = if (!s.cardCall) null else {
-        val tel = calls[CallMonitor.KEY]
-        val fromApp = calls.filterKeys { it != CallMonitor.KEY }.values.maxByOrNull { it.postTime }
+        // Звонки самого телефона — по настройке «Звонки телефона»; мессенджеры показываются всегда
+        val tel = if (s.cardPhoneCall) calls[CallMonitor.KEY] else null
+        val fromApp = calls.filterKeys { it != CallMonitor.KEY }.values
+            .filter { s.cardPhoneCall || !isPhoneDialer(it.pkg) }.maxByOrNull { it.postTime }
         when {
             fromApp == null -> tel
             tel == null -> fromApp
@@ -306,7 +308,10 @@ fun IslandOverlay(
         Controls.collapse()
     }
 
-    val hidden = s.hideIdle && primary is Act.Idle && !showExpanded && !calibrating
+    // Звонит телефон: у Samsung поверх острова своё окно звонка — остров прячется, пока оно на экране
+    val phoneRinging = s.hidePhoneRinging && !calibrating &&
+        (calls[CallMonitor.KEY]?.incoming == true || calls.values.any { it.incoming && isPhoneDialer(it.pkg) })
+    val hidden = (s.hideIdle && primary is Act.Idle && !showExpanded && !calibrating) || phoneRinging
 
     // Перед сменой формы просим окно стать большим, чтобы анимация шла внутри неподвижного окна
     val transitionKey = "${primary.id}|$showExpanded|${secondary?.id}|$hidden"
@@ -950,3 +955,11 @@ private class AnimatedIslandShape(private val corner: State<Dp>, private val not
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline =
         islandShape(corner.value, notch).createOutline(size, layoutDirection, density)
 }
+
+/** Звонилка самого телефона (Samsung, Google и другие), а не мессенджер */
+private val PhoneDialers = setOf(
+    "com.samsung.android.incallui", "com.samsung.android.dialer", "com.google.android.dialer",
+    "com.android.dialer", "com.android.incallui", "com.android.server.telecom",
+)
+
+fun isPhoneDialer(pkg: String): Boolean = pkg in PhoneDialers
