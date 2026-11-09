@@ -2,7 +2,7 @@ name: Release del fork
 
 # Avvio a mano: Actions → "Release del fork" → Run workflow, sul branch fix/oneui-notifiche-whatsapp,
 # con il tag della nuova versione (es. v1.6.5-fix5). Le note sono in .github/release-notes.md.
-# La chiave di firma è sempre la stessa (.github/fork-key.p12, protetta dal segreto DYNAMICISLAND):
+# La chiave di firma è sempre la stessa: sta solo nel segreto DYNAMICISLAND_KEY (non nel repository),
 # così ogni versione si installa sopra la precedente senza perdere le impostazioni.
 on:
   workflow_dispatch:
@@ -20,16 +20,17 @@ jobs:
     env:
       TAG: ${{ inputs.tag }}
       GH_TOKEN: ${{ github.token }}
-      KS_PASS: ${{ secrets.DYNAMICISLAND }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
       - name: Controlli
+        env:
+          KS_B64: ${{ secrets.DYNAMICISLAND_KEY }}
         run: |
           if [[ ! "$TAG" =~ ^v[0-9A-Za-z.\-]+$ ]]; then echo "::error::Tag non valido: $TAG"; exit 1; fi
-          if [[ -z "$KS_PASS" ]]; then echo "::error::Manca il segreto DYNAMICISLAND"; exit 1; fi
+          if [[ -z "$KS_B64" ]]; then echo "::error::Manca il segreto DYNAMICISLAND_KEY"; exit 1; fi
           if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then echo "::error::La release $TAG esiste già"; exit 1; fi
 
       - uses: actions/setup-java@v4
@@ -39,30 +40,23 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # La prima volta crea la chiave e la salva nel repository, cifrata con la password del segreto
-      - name: Chiave di firma
-        run: |
-          ks=.github/fork-key.p12
-          if [[ ! -f "$ks" ]]; then
-            keytool -genkeypair -keystore "$ks" -storetype PKCS12 -storepass "$KS_PASS" -keypass "$KS_PASS" \
-              -alias island -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Dynamic Island fork"
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add "$ks"
-            git commit -m "Chiave di firma del fork (protetta da password)"
-            git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_REF_NAME}"
-          fi
-
       - name: Compilazione
         run: ./gradlew --no-daemon assembleRelease
 
+      # La chiave esiste solo durante questo passaggio e poi viene cancellata
       - name: Firma
+        env:
+          KS_B64: ${{ secrets.DYNAMICISLAND_KEY }}
         run: |
+          ks="$RUNNER_TEMP/fork.p12"
+          trap 'rm -f "$ks"' EXIT
+          printf '%s' "$KS_B64" | base64 -d > "$ks"
+          export KS_PASS=dynamic-island-fork
           bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           mkdir -p out
           apk="out/DynamicIsland-${TAG#v}.apk"
           "$bt/zipalign" -f 4 app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/aligned.apk"
-          "$bt/apksigner" sign --ks .github/fork-key.p12 --ks-type PKCS12 --ks-key-alias island \
+          "$bt/apksigner" sign --ks "$ks" --ks-type PKCS12 --ks-key-alias island \
             --ks-pass env:KS_PASS --key-pass env:KS_PASS --out "$apk" "$RUNNER_TEMP/aligned.apk"
           "$bt/apksigner" verify --print-certs "$apk"
 
