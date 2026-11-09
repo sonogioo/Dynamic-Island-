@@ -123,6 +123,9 @@ data class CallInfo(
     val decline: PendingIntent?,
     val hangUp: PendingIntent?,
     val open: PendingIntent?,
+    /** Кнопки «Без звука» и «Динамик» из уведомления звонилки, если она их даёт */
+    val mute: PendingIntent? = null,
+    val speaker: PendingIntent? = null,
 )
 
 /** OTHER — «живое обновление» Android 16 любого другого приложения (LiveUpdates) */
