@@ -18,6 +18,7 @@ import androidx.compose.material.icons.rounded.Nfc
 import androidx.compose.material.icons.rounded.PowerOff
 import androidx.compose.material.icons.rounded.Usb
 import androidx.compose.material.icons.rounded.UsbOff
+import androidx.compose.material.icons.rounded.Draw
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material.icons.rounded.WifiOff
@@ -65,8 +66,11 @@ fun EventsScreen(onBack: () -> Unit) {
                 s.evHeadsetOff, color = Tile.Gray) { set { copy(evHeadsetOff = it) } }
             GroupToggle(Pos.Middle, Icons.Rounded.Usb, tr("USB-устройство подключено", "USB device connected"), null,
                 s.evUsbOn, color = Tile.Teal) { set { copy(evUsbOn = it) } }
-            GroupToggle(Pos.Last, Icons.Rounded.UsbOff, tr("USB-устройство отключено", "USB device disconnected"), null,
+            GroupToggle(Pos.Middle, Icons.Rounded.UsbOff, tr("USB-устройство отключено", "USB device disconnected"), null,
                 s.evUsbOff, color = Tile.Gray) { set { copy(evUsbOff = it) } }
+            GroupToggle(Pos.Last, Icons.Rounded.Draw, "S Pen",
+                tr("Когда S Pen вынимают или вставляют (Samsung)", "When the S Pen is taken out or put back (Samsung)"),
+                s.evSPen, color = Tile.Blue) { set { copy(evSPen = it) } }
         }
 
         SectionHeader(tr("Режимы", "Modes"))
