@@ -123,6 +123,7 @@ class SystemEvents(private val context: Context) {
             addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
             addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
             addAction(USB_STATE)
+            addAction(SPEN_INSERT)
             addAction(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED)
             addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
         }
@@ -178,6 +179,13 @@ class SystemEvents(private val context: Context) {
             }
 
             Intent.ACTION_USER_PRESENT -> onUnlocked()
+
+            // S Pen вынули или вставили — телефоны Samsung с пером
+            SPEN_INSERT -> {
+                val inserted = intent.getBooleanExtra("penInsert", true)
+                notice(s.evSPen, Notice("S Pen", if (inserted) tr("Вставлен", "Inserted") else tr("Извлечён", "Removed"),
+                    ic(R.drawable.ios_pen), if (inserted) Tints.Gray else Tints.Blue))
+            }
 
             Intent.ACTION_SCREEN_OFF -> {
                 IslandBus.screenOn.value = false
@@ -339,5 +347,6 @@ class SystemEvents(private val context: Context) {
         const val BT_BATTERY_CHANGED = "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED"
         const val EXTRA_BT_BATTERY = "android.bluetooth.device.extra.BATTERY_LEVEL"
         const val USB_STATE = "android.hardware.usb.action.USB_STATE"
+        const val SPEN_INSERT = "com.samsung.pen.INSERT"
     }
 }
