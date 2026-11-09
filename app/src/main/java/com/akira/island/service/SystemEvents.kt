@@ -123,7 +123,6 @@ class SystemEvents(private val context: Context) {
             addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
             addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
             addAction(USB_STATE)
-            addAction(SPEN_INSERT)
             addAction(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED)
             addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
         }
