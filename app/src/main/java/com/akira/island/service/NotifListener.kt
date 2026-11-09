@@ -185,12 +185,16 @@ object NotificationParser {
         var answer = pending(ex, "android.answerIntent")
         var decline = pending(ex, "android.declineIntent")
         var hangUp = pending(ex, "android.hangUpIntent")
+        var mute: PendingIntent? = null
+        var speaker: PendingIntent? = null
         n.actions?.forEach { a ->
             val t = a.title?.toString()?.lowercase().orEmpty()
             when {
                 answer == null && AnswerWords.any { it in t } -> answer = a.actionIntent
                 decline == null && DeclineWords.any { it in t } -> decline = a.actionIntent
                 hangUp == null && HangUpWords.any { it in t } -> hangUp = a.actionIntent
+                mute == null && MuteWords.any { it in t } -> mute = a.actionIntent
+                speaker == null && SpeakerWords.any { it in t } -> speaker = a.actionIntent
             }
         }
         val incoming = !ongoing && answer != null
@@ -219,6 +223,8 @@ object NotificationParser {
             decline = decline ?: hangUp,
             hangUp = hangUp ?: decline,
             open = n.contentIntent,
+            mute = mute,
+            speaker = speaker,
         )
     }
 
@@ -348,4 +354,12 @@ private val HangUpWords = listOf(
     "заверш", "положить", "hang", "end call", "kết thúc", "gác máy", "akhiri", "colgar", "finalizar", "desligar",
     "encerrar", "วางสาย", "kapat", "auflegen", "beenden", "raccrocher", "riaggancia", "zakończ", "завершити", "ibaba",
     "挂断", "掛斷", "終了", "종료",
+)
+
+/** Кнопки «Без звука» и «Динамик» в уведомлении идущего разговора */
+private val MuteWords = listOf(
+    "mute", "muto", "microfono", "без звука", "микрофон", "silenciar", "stumm", "micro", "sessiz",
+)
+private val SpeakerWords = listOf(
+    "speaker", "vivavoce", "altoparlante", "динамик", "громк", "altavoz", "alto-falante", "lautsprecher", "haut-parleur", "hoparlör",
 )
