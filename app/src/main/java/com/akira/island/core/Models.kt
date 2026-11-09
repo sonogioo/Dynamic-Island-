@@ -215,6 +215,16 @@ data class PayReady(val pkg: String, val icon: ImageBitmap?)
  */
 data class AlarmInfo(val triggerAt: Long, val pkg: String?, val show: PendingIntent?)
 
+/** Звонящий будильник «Часов»: кнопки «Отложить» и «Выключить» из его уведомления */
+data class RingingAlarm(
+    val key: String,
+    val pkg: String,
+    val title: String,
+    val snooze: PendingIntent?,
+    val dismiss: PendingIntent?,
+    val open: PendingIntent?,
+)
+
 /**
  * Кнопка из уведомления: «Ответить», «Пометить прочитанным» и т. п.
  * [inputs] не пуст у кнопки с полем ответа — тогда остров показывает строку ввода.
