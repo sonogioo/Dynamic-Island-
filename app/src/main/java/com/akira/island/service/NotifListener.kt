@@ -108,8 +108,6 @@ object NotificationParser {
         }
         IslandBus.calls.value = IslandBus.calls.value.toMutableMap().apply {
             if (call != null) put(sbn.key, call) else remove(sbn.key)
-            // Звонок Samsung уже пришёл по состоянию телефона — оставляем только уведомление с кнопками
-            if (call != null && CallMonitor.isSamsungDialer(call.pkg)) remove(CallMonitor.KEY)
         }
 
         val ticking = ex.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER, false) && n.`when` > 0
