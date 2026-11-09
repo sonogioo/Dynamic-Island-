@@ -302,6 +302,9 @@ fun NotificationsScreen(onBack: () -> Unit) {
                 s.msgInApp, color = Tile.Teal) { v ->
                 SettingsRepo.update { copy(msgInApp = v) }
             }
+            GroupToggle(Pos.Middle, Icons.Rounded.VisibilityOff, tr("Скрывать текст", "Hide the text"),
+                tr("Только имя и «Новое сообщение» — для людных мест", "Only the name and New message, for when you're out in public"),
+                s.msgHideText, color = Tile.Gray) { v -> SettingsRepo.update { copy(msgHideText = v) } }
             GroupSlider(
                 Pos.Last, Icons.Rounded.FormatLineSpacing, tr("Строк текста", "Text lines"),
                 value = s.msgLines.toFloat(), range = 1f..6f, steps = 4, label = "${s.msgLines}", color = Tile.Green,
