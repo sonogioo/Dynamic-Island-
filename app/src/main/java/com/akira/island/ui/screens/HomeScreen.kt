@@ -29,6 +29,26 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.AccessibilityNew
+import androidx.compose.material.icons.rounded.AccessAlarm
+import androidx.compose.material.icons.rounded.AirplanemodeActive
+import androidx.compose.material.icons.rounded.AlarmOn
+import androidx.compose.material.icons.rounded.BatteryAlert
+import androidx.compose.material.icons.rounded.BatteryChargingFull
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Done
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.FiberManualRecord
+import androidx.compose.material.icons.rounded.FlashlightOn
+import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.LockOpen
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.PhoneInTalk
+import androidx.compose.material.icons.rounded.PowerOff
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Usb
+import androidx.compose.material.icons.rounded.Vibration
+import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.Bolt
@@ -455,7 +475,117 @@ private fun demos(context: Context): List<Demo> = listOf(
         tr("Карточка новой версии: загрузка и «Обновлено»", "The new version card: download, then Updated"), Tile.Pink) {
         UpdateChecker.showDemo(context)
     },
+
+    // Остальные события острова — как настоящие, через несколько секунд пропадают сами
+    Demo(Icons.Rounded.Wifi, "Wi-Fi", tr("Подключение к сети", "Connected to a network"), Tile.Blue) {
+        IslandBus.post(Notice("Wi-Fi", tr("Подключён", "Connected"), Ios.load(context, R.drawable.ios_wifi), Tints.Blue))
+    },
+    Demo(Icons.Rounded.Headphones, tr("Наушники", "Headphones"), tr("Подключены, с зарядом кейса", "Connected, with battery level"), Tile.Green) {
+        IslandBus.post(
+            Notice("AirPods", null, Ios.load(context, R.drawable.ios_headset), Tints.Green, ring = 0.8f,
+                caption = tr("Подключено", "Connected")),
+        )
+    },
+    Demo(Icons.Rounded.DarkMode, tr("Не беспокоить", "Do Not Disturb"), tr("Включение режима", "Turning the mode on"), Tile.Purple) {
+        IslandBus.post(Notice(tr("Не беспокоить", "Do Not Disturb"), tr("Вкл", "On"), Ios.load(context, R.drawable.ios_moon), Tints.Purple))
+    },
+    Demo(Icons.Rounded.AirplanemodeActive, tr("Режим полёта", "Airplane Mode"), tr("Включение режима", "Turning the mode on"), Tile.Orange) {
+        IslandBus.post(Notice(tr("Режим полёта", "Airplane Mode"), tr("Вкл", "On"), Ios.load(context, R.drawable.ios_airplane), Tints.Orange))
+    },
+    Demo(Icons.Rounded.BatteryAlert, tr("Низкий заряд", "Low Battery"), tr("Красная батарейка, 15%", "Red battery, 15%"), Tile.Red) {
+        IslandBus.post(Notice(tr("Низкий заряд", "Low Battery"), "15%", Ios.load(context, R.drawable.ios_battery_dead), Tints.Red, battery = 15))
+    },
+    Demo(Icons.Rounded.PowerOff, tr("Отключено", "Unplugged"), tr("Зарядку отключили", "The charger was unplugged"), Tile.Orange) {
+        IslandBus.post(Notice(tr("Отключено", "Unplugged"), "80%", Ios.load(context, R.drawable.ios_battery_full), Tints.Orange, battery = 80))
+    },
+    Demo(Icons.Rounded.BatteryChargingFull, tr("Капсула зарядки", "Charging capsule"), tr("Пока телефон заряжается", "While the phone is charging"), Tile.Green) {
+        showFor(IslandBus.battery, com.akira.island.core.BatteryInfo(76, true), 8_000)
+    },
+    Demo(Icons.Rounded.LightMode, tr("Яркость", "Brightness"), tr("Авто или вручную", "Auto or manual"), Tile.Yellow) {
+        IslandBus.post(Notice(tr("Яркость", "Brightness"), tr("Авто", "Auto"), Ios.load(context, R.drawable.ios_sunny), Tints.Yellow))
+    },
+    Demo(Icons.Rounded.Usb, "USB", tr("Подключили устройство", "A device was connected"), Tile.Teal) {
+        IslandBus.post(Notice(tr("USB-устройство", "USB device"), tr("Подключено", "Connected"), Ios.load(context, R.drawable.ios_hardware_chip), Tints.Teal))
+    },
+    Demo(Icons.Rounded.Vibration, tr("Вибрация", "Vibrate"), tr("Пилюля режима звука", "The ring mode pill"), Tile.Purple) {
+        IslandBus.post(Notice("", tr("Вибрация", "Vibrate"), Ios.load(context, R.drawable.ios_phone_portrait), Tints.Purple, style = NoticeStyle.PILL))
+    },
+    Demo(Icons.Rounded.LockOpen, tr("Разблокировка", "Unlock"), tr("Замок открывается", "The lock opens"), Tile.Gray) {
+        IslandBus.post(Notice("", null, Ios.load(context, R.drawable.ios_lock_open), Color.White, style = NoticeStyle.PILL))
+    },
+    Demo(Icons.Rounded.Done, tr("Отправлено", "Sent"), tr("Ответ из острова ушёл", "A reply sent from the island"), Tile.Blue) {
+        IslandBus.post(
+            Notice(tr("Отправлено", "Sent"), tr("Анна", "Anna"), Ios.load(context, R.drawable.ios_chatbubble_ellipses), Tints.Blue,
+                style = NoticeStyle.SENT),
+        )
+    },
+    Demo(Icons.Rounded.PhoneInTalk, tr("Разговор", "Ongoing call"), tr("Время разговора и «Завершить»", "Call time and End"), Tile.Green) {
+        val now = System.currentTimeMillis()
+        val call = com.akira.island.core.CallInfo(Controls.TEST_CALL, "", tr("Анна", "Anna"), null, false, now - 65_000, now,
+            null, null, null, null)
+        IslandBus.calls.value = IslandBus.calls.value + (Controls.TEST_CALL to call)
+        IslandBus.scope.launch {
+            delay(20_000)
+            if (IslandBus.calls.value[Controls.TEST_CALL] == call) IslandBus.calls.value = IslandBus.calls.value - Controls.TEST_CALL
+        }
+    },
+    Demo(Icons.Rounded.MusicNote, tr("Музыка", "Music"), tr("Обложка и волна, раскрывается плеер", "Cover and waveform, opens the player"), Tile.Pink) {
+        showFor(
+            IslandBus.media,
+            MediaInfo(
+                key = "demo-media", pkg = "", title = tr("Песня", "Song"), artist = tr("Исполнитель", "Artist"), album = null, art = null,
+                accent = Tints.Lavender, durationMs = 200_000, positionMs = 40_000, positionTime = SystemClock.elapsedRealtime(),
+                speed = 1f, playing = true, canSeek = false,
+            ),
+            12_000,
+        )
+    },
+    Demo(Icons.Rounded.Download, tr("Загрузка", "Download"), tr("Полоса прогресса до 100%", "A progress bar up to 100%"), Tile.Indigo) {
+        val key = "demo-progress"
+        val icon = NotificationParser.icon(context, context.packageName)
+        IslandBus.scope.launch {
+            for (p in 0..100 step 5) {
+                IslandBus.progress.value = IslandBus.progress.value +
+                    (key to com.akira.island.core.ProgressInfo(key, context.packageName, tr("Загрузка файла", "Downloading file"), icon, p, 100, false, System.currentTimeMillis()))
+                delay(400)
+            }
+            delay(800)
+            IslandBus.progress.value = IslandBus.progress.value - key
+        }
+    },
+    Demo(Icons.Rounded.Timer, tr("Секундомер", "Stopwatch"), tr("Время идёт в капсуле", "Time runs in the capsule"), Tile.Orange) {
+        showFor(IslandBus.stopwatch, com.akira.island.core.StopwatchState(SystemClock.elapsedRealtime(), 0), 12_000)
+    },
+    Demo(Icons.Rounded.FiberManualRecord, tr("Запись экрана", "Screen recording"), tr("Красная точка и время", "Red dot and the time"), Tile.Red) {
+        val key = "demo-chrono"
+        val now = System.currentTimeMillis()
+        IslandBus.chrono.value = IslandBus.chrono.value + (key to com.akira.island.core.ChronoInfo(key, context.packageName,
+            tr("Запись экрана", "Screen recording"), NotificationParser.icon(context, context.packageName), now, false, now))
+        IslandBus.scope.launch {
+            delay(12_000)
+            IslandBus.chrono.value = IslandBus.chrono.value - key
+        }
+    },
+    Demo(Icons.Rounded.FlashlightOn, tr("Фонарик", "Flashlight"), tr("Значок фонарика в капсуле", "The flashlight icon in the capsule"), Tile.Yellow) {
+        showFor(IslandBus.torch, com.akira.island.core.TorchState(on = true), 8_000)
+    },
+    Demo(Icons.Rounded.AccessAlarm, tr("Скоро будильник", "Upcoming alarm"), tr("Капсула до подъёма", "The capsule before wake-up"), Tile.Indigo) {
+        showFor(IslandBus.nextAlarm, AlarmInfo(System.currentTimeMillis() + (7 * 60 + 30) * 60_000L, null, null), 12_000)
+    },
+    Demo(Icons.Rounded.AlarmOn, tr("Звонит будильник", "Alarm ringing"), tr("Кнопки «Отложить» и «Выключить»", "Snooze and Stop buttons"), Tile.Red) {
+        showFor(IslandBus.ringingAlarm, com.akira.island.core.RingingAlarm("demo-alarm", context.packageName, "07:00", null, null, null), 12_000)
+    },
 )
+
+/** Подставить пример на [ms] миллисекунд и вернуть, как было, — если за это время его не сменило настоящее событие. */
+private fun <T> showFor(flow: kotlinx.coroutines.flow.MutableStateFlow<T>, value: T, ms: Long) {
+    val before = flow.value
+    flow.value = value
+    IslandBus.scope.launch {
+        delay(ms)
+        if (flow.value === value) flow.value = before
+    }
+}
 
 @Composable
 internal fun Status(ok: Boolean) {
