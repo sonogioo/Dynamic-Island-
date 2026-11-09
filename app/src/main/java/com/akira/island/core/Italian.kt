@@ -6,6 +6,15 @@ package com.akira.island.core
  */
 internal object Italian {
     val words: Map<String, String> = hashMapOf(
+        "1 min" to "1 min",
+        "New message" to "Nuovo messaggio",
+        "Hide the text" to "Nascondi il testo",
+        "Only the name and New message, for when you're out in public" to "Solo il nome e “Nuovo messaggio”, per quando sei in pubblico",
+        "Artwork color in the player" to "Colore della copertina nel lettore",
+        "The expanded player with a soft tint of the artwork's color" to "Il lettore aperto con una leggera sfumatura del colore della copertina",
+        "When the S Pen is taken out or put back (Samsung)" to "Quando estrai o reinserisci la S Pen (Samsung)",
+        "Inserted" to "Inserita",
+        "Removed" to "Estratta",
         "Export settings" to "Esporta impostazioni",
         "Save everything to a file to restore it after reinstalling" to "Salva tutto in un file per ripristinarlo dopo una reinstallazione",
         "Import settings" to "Importa impostazioni",
