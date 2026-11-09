@@ -149,6 +149,7 @@ fun ExpandedContent(act: Act, s: IslandSettings, lyrics: Lyrics?, battery: Batte
             is Act.LiveA -> LiveExpanded(act.l)
             is Act.CallA -> CallExpanded(act.c)
             is Act.AlarmA -> AlarmExpanded(act.a, s)
+            is Act.RingingAlarmA -> RingingAlarmExpanded(act.r)
             else -> IdleExpanded(s, battery)
         }
     }
