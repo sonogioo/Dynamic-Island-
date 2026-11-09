@@ -1,5 +1,8 @@
 package com.akira.island.ui.screens
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +29,8 @@ import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.FileDownload
+import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.ScreenRotation
@@ -93,6 +98,23 @@ fun FeaturesScreen(open: (Screen) -> Unit) {
     val s by SettingsRepo.state.collectAsState()
     var confirmReset by remember { mutableStateOf(false) }
     var languageDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    // Экспорт и импорт: файл с настройками переживает переустановку приложения
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val ok = runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { it.write(SettingsRepo.exportJson().toByteArray()) } != null
+        }.getOrDefault(false)
+        Toast.makeText(context, if (ok) tr("Настройки сохранены", "Settings saved") else tr("Не удалось сохранить файл", "Couldn't save the file"),
+            Toast.LENGTH_SHORT).show()
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val raw = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } }.getOrNull()
+        val ok = raw != null && SettingsRepo.importJson(raw)
+        Toast.makeText(context, if (ok) tr("Настройки восстановлены", "Settings restored")
+            else tr("В этом файле нет настроек острова", "This file doesn't contain island settings"), Toast.LENGTH_SHORT).show()
+    }
 
     Page(tr("Функции", "Features")) {
         SectionHeader(tr("Что показывает остров", "What the island shows"))
@@ -128,6 +150,12 @@ fun FeaturesScreen(open: (Screen) -> Unit) {
             // Значок глобуса и «Language» рядом — язык найдётся, даже если сейчас он непонятен
             GroupItem(Pos.First, Icons.Rounded.Language, if (Lang.it) "Lingua · Language" else if (Lang.en) "Language" else "Язык · Language", s.language.title,
                 color = Tile.Blue, onClick = { languageDialog = true }) { Arrow() }
+            GroupItem(Pos.Middle, Icons.Rounded.FileUpload, tr("Экспорт настроек", "Export settings"),
+                tr("Сохранить всё в файл, чтобы вернуть после переустановки", "Save everything to a file to restore it after reinstalling"),
+                color = Tile.Green, onClick = { exportLauncher.launch("dynamic-island-settings.json") })
+            GroupItem(Pos.Middle, Icons.Rounded.FileDownload, tr("Импорт настроек", "Import settings"),
+                tr("Загрузить настройки из сохранённого файла", "Load the settings from a saved file"),
+                color = Tile.Teal, onClick = { importLauncher.launch(arrayOf("*/*")) })
             GroupItem(Pos.Last, Icons.Rounded.Restore, tr("Сбросить все настройки", "Reset all settings"),
                 tr("Вернуть всё как было после установки", "Back to how it was after installing"),
                 onClick = { confirmReset = true }, color = Tile.Gray)
