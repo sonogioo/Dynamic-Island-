@@ -1,5 +1,8 @@
 Versione modificata di Dynamic Island (fork di Akira9021/Dynamic-Island-).
 
+## Novità in 1.7.2
+- **Nascondi mentre squilla**: ora vale solo per le chiamate normali della SIM. Con le chiamate di WhatsApp, Instagram, Telegram e altre app l'isola non si nasconde più e mostra la chiamata.
+
 ## Novità in 1.7.1
 - **Tasto riaggancia**: ora chiude davvero la chiamata (usa il servizio chiamate di Android quando c'è il permesso Telefono).
 - **Foto del contatto** nelle chiamate: la foto vera della rubrica invece dell'iniziale.
