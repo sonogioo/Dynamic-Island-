@@ -56,6 +56,14 @@ class CallMonitor(private val context: Context, private val scope: CoroutineScop
         @Suppress("DEPRECATION")
         val num = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
         if (!num.isNullOrBlank()) number = num
+        // Su Samsung (e altri) anche le chiamate VoIP — WhatsApp, Instagram, Telegram… — mettono il telefono in
+        // «squilla»/«in chiamata». Quelle non sono chiamate del telefono: le mostra già la loro notifica, e non
+        // devono far scattare «Nascondi mentre squilla». Le chiamate della SIM sono «managed» per Telecom, le VoIP no
+        if (state != TelephonyManager.EXTRA_STATE_IDLE && !isManagedCall()) {
+            lastState = state
+            remove()
+            return
+        }
         when (state) {
             TelephonyManager.EXTRA_STATE_RINGING -> publish(incoming = true)
             TelephonyManager.EXTRA_STATE_OFFHOOK -> {
@@ -103,6 +111,18 @@ class CallMonitor(private val context: Context, private val scope: CoroutineScop
     private fun dialer(): String = runCatching {
         context.getSystemService(TelecomManager::class.java)?.defaultDialerPackage
     }.getOrNull() ?: ""
+
+    /**
+     * C'è una chiamata vera del telefono (SIM, gestita dalla app Telefono)? Le chiamate VoIP self-managed
+     * (WhatsApp, Instagram, Messenger, Telegram…) qui non contano. Senza permesso o in caso di errore
+     * consideriamo la chiamata del telefono, come prima.
+     */
+    @Suppress("MissingPermission")
+    private fun isManagedCall(): Boolean {
+        if (!granted(Manifest.permission.READ_PHONE_STATE)) return true
+        return runCatching { context.getSystemService(TelecomManager::class.java)?.isInManagedCall }
+            .getOrNull() ?: true
+    }
 
     private fun granted(p: String) = ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
 
