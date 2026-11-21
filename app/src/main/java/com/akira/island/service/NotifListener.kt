@@ -355,21 +355,26 @@ object NotificationParser {
         val incoming = !ongoing && answer != null
         if (!incoming && !ongoing) return null
 
-        val person = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        // Chi chiama: nome, foto e contatto (Person esiste da Android 12 nelle notifiche di chiamata)
+        var personName: String? = null
+        var personUri: String? = null
+        var personIcon: android.graphics.drawable.Icon? = null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             @Suppress("DEPRECATION")
-            runCatching { ex.getParcelable<Person>(Notification.EXTRA_CALL_PERSON) }.getOrNull()
-        } else {
-            null
+            val person = runCatching { ex.getParcelable<Person>(Notification.EXTRA_CALL_PERSON) }.getOrNull()
+            personName = person?.name?.toString()
+            personUri = person?.uri
+            personIcon = person?.icon
         }
-        val name = person?.name?.toString()?.takeIf { it.isNotBlank() } ?: title
+        val name = personName?.takeIf { it.isNotBlank() } ?: title
         fun load(icon: android.graphics.drawable.Icon?) = runCatching {
             icon?.loadDrawable(context)?.toBitmap(192, 192)?.asImageBitmap()
         }.getOrNull()
         val contacts = CallMonitor.granted(context)
         // Настоящее фото из контактов — первым: у многих звонилок значок уведомления — просто буква на круге
-        val avatar = (if (contacts) CallMonitor.photoByUri(context, person?.uri) else null)
+        val avatar = (if (contacts) CallMonitor.photoByUri(context, personUri) else null)
             ?: (if (contacts) CallMonitor.photoByName(context, name) else null)
-            ?: load(person?.icon)
+            ?: load(personIcon)
             ?: load(n.getLargeIcon())
         return CallInfo(
             key = sbn.key,
