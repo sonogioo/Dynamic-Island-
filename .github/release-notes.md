@@ -1,5 +1,8 @@
 Versione modificata di Dynamic Island (fork di Akira9021/Dynamic-Island-).
 
+## Novità in 1.7.5
+- **Aggiornamento dall'app**: la 1.7.3 e la 1.7.4 dicevano "La release non contiene un APK" perché accettavano solo i file della versione ufficiale. Ora scaricano gli aggiornamenti del fork. Da 1.7.3/1.7.4 installa questa a mano una volta; dalle prossime l'aggiornamento funziona dall'app.
+
 ## Novità in 1.7.4
 - **Tocco sulla notifica**: apre di nuovo l'app del messaggio, come prima. Nella 1.7.3 apriva solo la scheda del messaggio dentro l'isola.
 

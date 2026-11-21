@@ -9,7 +9,8 @@ internal object UpdateDownloadPolicy {
      * Репозиторий переименовывали (Akira9021 → Arusaky), и GitHub отдаёт в ссылках на файлы текущее
      * имя владельца. Старое имя оставляем ради ссылок, созданных до переезда.
      */
-    private val repos = setOf("arusaky/dynamic-island-", "akira9021/dynamic-island-")
+    // Fork: gli aggiornamenti arrivano dal repository del fork (UpdateChecker.REPO)
+    private val repos = setOf(UpdateChecker.REPO.lowercase(), "arusaky/dynamic-island-", "akira9021/dynamic-island-")
     private val assetHosts = setOf("release-assets.githubusercontent.com", "objects.githubusercontent.com", "github-releases.githubusercontent.com")
 
     fun isReleaseAssetUrl(value: String): Boolean = secureUri(value)?.let { uri ->

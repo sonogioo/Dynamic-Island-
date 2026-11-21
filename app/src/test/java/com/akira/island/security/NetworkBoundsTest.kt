@@ -32,6 +32,7 @@ class NetworkBoundsTest {
         assertTrue(UpdateDownloadPolicy.isReleaseAssetUrl(path))
         // GitHub отдаёт ссылки уже с новым именем владельца — раньше из-за этого не скачивалось обновление
         assertTrue(UpdateDownloadPolicy.isReleaseAssetUrl(path.replace("Akira9021", "Arusaky")))
+        assertTrue(UpdateDownloadPolicy.isReleaseAssetUrl(path.replace("Akira9021", "sonogioo")))
         assertTrue(UpdateDownloadPolicy.isDownloadHop("https://release-assets.githubusercontent.com/a.apk?signature=test"))
         for (url in listOf(
             path.replace("https", "http"),
