@@ -1,5 +1,8 @@
 Versione modificata di Dynamic Island (fork di Akira9021/Dynamic-Island-).
 
+## Novità in 1.7.4
+- **Tocco sulla notifica**: apre di nuovo l'app del messaggio, come prima. Nella 1.7.3 apriva solo la scheda del messaggio dentro l'isola.
+
 ## Novità in 1.7.3
 Tutto l'aggiornamento ufficiale fino alla **1.7.2** (Arusaky/Akira9021), con le modifiche del fork alle chiamate mantenute:
 - **Dall'ufficiale**: materiale Liquid Glass e sfocatura del sistema, cronologia notifiche, dettaglio del messaggio con scorrimento e swipe per chiudere, registrazioni (diktofoni, schermo), meteo, hotspot, karaoke dei testi, Face ID tramite Shizuku, nuove lingue, anteprime dal vivo nelle impostazioni, ricerca nelle impostazioni e molte correzioni.

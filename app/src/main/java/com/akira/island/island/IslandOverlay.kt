@@ -968,12 +968,15 @@ private fun onTap(context: Context, act: Act, expanded: Boolean, s: IslandSettin
             // Пока вводят ответ, нажатие по карточке не должно открывать приложение
             if (IslandBus.reply.value != null) return
             // Нажатие на уведомление приложения открывает его, как на iPhone
-            if (act.n.message != null) {
+            act.n.message?.let { m ->
                 if (s.tapAction == TapAction.DISMISS_NOTIFICATION) {
                     perform(context, s.tapAction, act)
                     return
                 }
-                IslandBus.messageDetail.value = true
+                // Fork: il tocco apre l'app della notifica (come prima della 1.7 ufficiale), non la scheda del messaggio
+                if (!Controls.send(context, m.intent)) Controls.openApp(context, m.pkg)
+                IslandBus.messageDetail.value = false
+                IslandBus.notice.value = null
                 return
             }
             act.n.openPkg?.let { Controls.openApp(context, it) }
