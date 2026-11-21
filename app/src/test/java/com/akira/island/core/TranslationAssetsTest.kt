@@ -37,5 +37,6 @@ class TranslationAssetsTest {
         assertEquals("kk", AppLanguage.KK.code)
         assertEquals("fr", AppLanguage.FR.code)
         assertEquals("es", AppLanguage.ES.code)
+        assertEquals("it", AppLanguage.IT.code)
     }
 }
