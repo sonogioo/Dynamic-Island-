@@ -39,7 +39,7 @@ data class LyricLine(val timeMs: Long, val text: String)
 
 enum class LyricsStatus { LOADING, MISSING, FOUND }
 
-/** [synced] = false — у трека нашёлся только обычный текст, строки разложены по его длине. */
+/** [synced] = false — обычный текст без временных меток; его нельзя показывать как караоке. */
 data class Lyrics(val key: String, val lines: List<LyricLine>, val synced: Boolean = true) {
     /** Индекс строки, которая поётся в момент [pos], или -1 до первой строки. */
     fun indexAt(pos: Long): Int {
@@ -68,8 +68,20 @@ data class ProgressInfo(
     val max: Int,
     val indeterminate: Boolean,
     val postTime: Long,
+    val transferDetails: TransferDetails? = null,
 ) {
     val fraction: Float get() = if (max > 0) (progress.toFloat() / max).coerceIn(0f, 1f) else 0f
+}
+
+enum class RecordingKind {
+    VOICE, SCREEN, VIDEO, GENERIC;
+
+    val title: String get() = when (this) {
+        VOICE -> tr("Запись звука", "Audio recording")
+        SCREEN -> tr("Запись экрана", "Screen recording")
+        VIDEO -> tr("Запись видео", "Video recording")
+        GENERIC -> tr("Запись", "Recording")
+    }
 }
 
 data class ChronoInfo(
@@ -89,6 +101,10 @@ data class ChronoInfo(
     val pause: PendingIntent? = null,
     val resume: PendingIntent? = null,
     val reset: PendingIntent? = null,
+    /** Тип записи подтверждён уведомлением источника; заголовок сам по себе не делает таймер диктофоном. */
+    val recordingKind: RecordingKind? = null,
+    /** Original notification destination; recording controls never replace missing actions with guessed intents. */
+    val open: PendingIntent? = null,
 ) {
     fun elapsed(nowWall: Long): Long = pausedMs ?: if (countDown) (base - nowWall).coerceAtLeast(0) else nowWall - base
 
@@ -104,9 +120,9 @@ data class ChronoInfo(
         const val DONE_MS = 3_000L
     }
 
-    /** Запись экрана или звука — показывается красным. */
-    val isRecording: Boolean
-        get() = title.lowercase().let { t -> "record" in t || "запис" in t }
+    val isRecording: Boolean get() = recordingKind != null
+    val recording: Boolean get() = isRecording
+    val screenRecording: Boolean get() = recordingKind == RecordingKind.SCREEN
 }
 
 /** Звонок из уведомления звонилки: входящий или идущий разговор. */
@@ -182,7 +198,19 @@ data class StopwatchState(val startedAt: Long?, val accumulated: Long) {
     val running: Boolean get() = startedAt != null
 }
 
-data class BatteryInfo(val level: Int = -1, val charging: Boolean = false)
+data class BatteryInfo(
+    val level: Int = -1,
+    val charging: Boolean = false,
+    /** Ток и напряжение аккумулятора, если устройство отдаёт их через BatteryManager. */
+    val currentMa: Float? = null,
+    val voltageV: Float? = null,
+    /** Измеренная мощность на аккумуляторе, не номинальная мощность зарядного устройства. */
+    val powerWatts: Float? = null,
+    /** До полного заряда: оценка Android либо явно отмеченная приблизительная; null — неизвестно. */
+    val remainingMs: Long? = null,
+    /** True only for an approximate rate observed during this charging session. */
+    val remainingApproximate: Boolean = false,
+)
 
 /** Как событие выглядит в острове. */
 enum class NoticeStyle {
@@ -257,6 +285,21 @@ data class AppMessage(
     val history: List<String> = emptyList(),
     /** На заблокированном экране вместо имени и текста — только название приложения, как в шторке */
     val sensitive: Boolean = false,
+)
+
+/** Уведомление в «Истории уведомлений»: ждёт в острове, пока его не прочитают, не очистят или не выйдет время. */
+data class InboxItem(
+    val key: String,
+    val pkg: String,
+    val appName: String,
+    val title: String,
+    val text: String,
+    val avatar: ImageBitmap?,
+    val appIcon: ImageBitmap?,
+    val intent: PendingIntent?,
+    /** Когда пришло, System.currentTimeMillis */
+    val time: Long,
+    val sensitive: Boolean,
 )
 
 /**

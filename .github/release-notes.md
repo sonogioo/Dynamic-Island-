@@ -1,5 +1,12 @@
 Versione modificata di Dynamic Island (fork di Akira9021/Dynamic-Island-).
 
+## Novità in 1.7.3
+Tutto l'aggiornamento ufficiale fino alla **1.7.2** (Arusaky/Akira9021), con le modifiche del fork alle chiamate mantenute:
+- **Dall'ufficiale**: materiale Liquid Glass e sfocatura del sistema, cronologia notifiche, dettaglio del messaggio con scorrimento e swipe per chiudere, registrazioni (diktofoni, schermo), meteo, hotspot, karaoke dei testi, Face ID tramite Shizuku, nuove lingue, anteprime dal vivo nelle impostazioni, ricerca nelle impostazioni e molte correzioni.
+- **Chiamate (fork)**: riaggancia con il servizio chiamate di Android, foto vera del contatto, Muto/Vivavoce, "Chiamate del telefono" e "Nascondi mentre squilla" solo per le chiamate SIM restano come prima. In più, dall'ufficiale: una chiamata WhatsApp/Telegram non può mai rispondere o chiudere una chiamata SIM, e supporto a Discord, Zoom, Teams, Meet, Viber, LINE.
+- **Notifiche (fork)**: niente doppie plashe WhatsApp, testo completo, tasti che compaiono tirando giù o tenendo premuto restano; in più "Ritardo di comparsa", durata dei messaggi e "finché non le scorri" dall'ufficiale.
+- **Italiano** aggiunto al nuovo sistema di lingue.
+
 ## Novità in 1.7.2
 - **Nascondi mentre squilla**: ora vale solo per le chiamate normali della SIM. Con le chiamate di WhatsApp, Instagram, Telegram e altre app l'isola non si nasconde più e mostra la chiamata.
 
@@ -18,5 +25,5 @@ Versione modificata di Dynamic Island (fork di Akira9021/Dynamic-Island-).
 Chiamate Muto/Vivavoce, timer +1 min, Posponi/Ferma sveglia, colore copertina, Nascondi il testo, Respiro, Esporta/Importa impostazioni, chiave di firma fissa.
 
 ## Installazione
-**Dalla 1.7.0 o dalla fix4**: installa sopra, le impostazioni restano.
+**Dalla 1.7.x del fork o dalla fix4**: installa sopra, le impostazioni restano.
 **Dalla fix3 o dalle versioni ufficiali**: disinstalla prima la versione installata (una volta sola), poi installa e riattiva Accessibilità e Accesso alle notifiche.

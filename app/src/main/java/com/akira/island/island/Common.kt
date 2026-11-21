@@ -1,6 +1,12 @@
 package com.akira.island.island
 
 import android.os.SystemClock
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.content.Context
+import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -32,7 +38,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -40,21 +45,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameMillis
+import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.drawOutline
-import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.ImageBitmap
@@ -131,12 +138,16 @@ fun animDurationMs(s: IslandSettings): Int = 160 + s.durationPercent.coerceIn(0,
 
 /** Текущее время (elapsedRealtime) с обновлением раз в [periodMs]; пока экран погашен — не обновляется. */
 @Composable
-fun rememberNow(periodMs: Long, active: Boolean = true): Long {
-    var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+fun rememberNow(periodMs: Long, active: Boolean = true): Long = rememberNowState(periodMs, active).value
+
+/** Can be read in DrawScope, so progress does not recompose or remeasure the player. */
+@Composable
+fun rememberNowState(periodMs: Long, active: Boolean = true): State<Long> {
+    val now = remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
     LaunchedEffect(periodMs, active) {
         while (active) {
             if (!IslandBus.screenOn.value) IslandBus.screenOn.first { it }
-            now = SystemClock.elapsedRealtime()
+            now.longValue = SystemClock.elapsedRealtime()
             delay(periodMs)
         }
     }
@@ -160,7 +171,7 @@ fun rememberFxClock(active: Boolean): State<Long> {
             val fps = SettingsRepo.current.fxRate.fps
             val step = if (fps > 0) 1000L / fps else 0L
             // Кадр экрана раньше срока пропускаем: на 120 Гц при 60 кадрах рисуется каждый второй
-            withFrameMillis { t ->
+            withInfiniteAnimationFrameMillis { t ->
                 if (t - last >= step - 3) {
                     time.longValue = t
                     last = t
@@ -183,10 +194,10 @@ fun pingPong(t: Long, halfMs: Int): Float {
 
 /** То же для настенных часов (System.currentTimeMillis). */
 @Composable
-fun rememberWallNow(periodMs: Long): Long {
+fun rememberWallNow(periodMs: Long, active: Boolean = true): Long {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(periodMs) {
-        while (true) {
+    LaunchedEffect(periodMs, active) {
+        while (active) {
             if (!IslandBus.screenOn.value) IslandBus.screenOn.first { it }
             now = System.currentTimeMillis()
             delay(periodMs)
@@ -198,8 +209,32 @@ fun rememberWallNow(periodMs: Long): Long {
 @Composable
 fun rememberHaptic(): () -> Unit {
     val view = LocalView.current
-    return remember(view) {
-        { if (SettingsRepo.current.haptics) view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY) }
+    val context = LocalContext.current
+    return remember(view, context) {
+        {
+            if (SettingsRepo.current.haptics) {
+                val performed = view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                val systemHaptics = !performed && runCatching {
+                    Settings.System.getInt(context.contentResolver, Settings.System.HAPTIC_FEEDBACK_ENABLED, 1) != 0
+                }.getOrDefault(false)
+                if (!performed && systemHaptics) {
+                    // Some overlay windows cannot request view haptics; use the public vibrator API as a fallback.
+                    runCatching {
+                        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            context.getSystemService(VibratorManager::class.java)?.defaultVibrator
+                        } else {
+                            @Suppress("DEPRECATION")
+                            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                        }
+                        if (vibrator?.hasVibrator() == true) {
+                            vibrator.vibrate(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                                VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
+                            else VibrationEffect.createOneShot(12, VibrationEffect.DEFAULT_AMPLITUDE))
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -307,6 +342,13 @@ fun AppIcon(icon: ImageBitmap?, size: Dp, fallback: ImageVector, tint: Color, mo
     }
 }
 
+/** Optional main-action accent; red and green retain their call/warning meanings. */
+private fun controlTint(color: Color): Color {
+    val accent = IslandType.actionAccent ?: return color
+    val rgb = color.copy(alpha = 1f)
+    return if (rgb == Tints.Orange || rgb == Tints.Lavender || rgb == Tints.Blue) accent.copy(alpha = color.alpha) else color
+}
+
 @Composable
 fun RoundButton(
     icon: ImageVector,
@@ -331,11 +373,11 @@ fun RoundButton(
                 scaleY = scale
             }
             .clip(CircleShape)
-            .background(bg)
+            .background(controlTint(bg))
             .clickable(interaction, indication = null) { haptic(); onClick() },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, null, tint = fg, modifier = Modifier.size(size * iconScale).graphicsLayer { rotationZ = iconRotation })
+        Icon(icon, null, tint = controlTint(fg), modifier = Modifier.size(size * iconScale).graphicsLayer { rotationZ = iconRotation })
     }
 }
 
@@ -352,113 +394,15 @@ fun PillButton(
     Row(
         modifier
             .clip(CircleShape)
-            .background(bg)
+            .background(controlTint(bg))
             .clickable { haptic(); onClick() }
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = fg, modifier = Modifier.size(20.dp))
+        Icon(icon, null, tint = controlTint(fg), modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(6.dp))
-        Text(text, color = fg, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-    }
-}
-
-/**
- * Liquid Glass по образцу iOS 26: стекло, которое ловит и преломляет свет. Настоящего преломления
- * того, что лежит под островом, Android не даёт (поверх экрана нельзя «заглянуть» в чужое окно),
- * поэтому рисуется всё, что видно у настоящего стекла:
- *  - дымчатое полупрозрачное тело, светлее чёрной подложки, плотнее и темнее к низу (толщина);
- *  - пятно света сверху и каустика — светлое пятно у противоположного края, где свет собрало стекло;
- *  - мягкое свечение вдоль кромки и яркая линза-кромка: блики в верхнем левом и нижнем правом углу;
- *  - тонкая цветная дисперсия по краю (голубая и розовая каймы);
- *  - блики живут: при наклоне телефона ([tilt] от −1 до 1) они сдвигаются, а при смене содержимого
- *    по стеклу пробегает световая полоса ([sheen] от 0 до 1, иначе скрыта).
- */
-fun Modifier.glassSurface(
-    shape: Shape,
-    base: Color,
-    opacity: Float,
-    tilt: () -> Float = { 0f },
-    sheen: () -> Float = { -1f },
-): Modifier = drawWithCache {
-    val w = size.width
-    val h = size.height
-    val a = opacity.coerceIn(0.3f, 0.95f)
-    val outline = shape.createOutline(size, layoutDirection, this)
-    val dp = 1.dp.toPx()
-    // Всё, что не зависит от наклона, собирается один раз на размер, а кадр только рисует
-    val veil = Brush.verticalGradient(
-        0f to Color.White.copy(alpha = 0.20f),
-        0.5f to Color.White.copy(alpha = 0.05f),
-        1f to Color.White.copy(alpha = 0.10f),
-    )
-    val shade = Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.28f))
-    val glow = List(7) { i -> Stroke(width = (i + 1) * 2 * dp) }
-    val glowColor = Color.White.copy(alpha = 0.035f)
-    val wideRim = Stroke(width = 10 * dp)
-    val thinRim = Stroke(width = 3.2f * dp)
-    val fringe = Stroke(width = 4 * dp)
-
-    onDrawWithContent {
-        val t = tilt().coerceIn(-1f, 1f)
-
-        // Тело стекла
-        drawRect(base.copy(alpha = a * 0.8f))
-        drawRect(veil)
-        drawRect(shade)
-
-        // Свет сверху и каустика у противоположного края
-        drawRect(
-            Brush.radialGradient(
-                listOf(Color.White.copy(alpha = 0.26f), Color.Transparent),
-                center = Offset(w * (0.22f + 0.30f * t), 0f),
-                radius = w * 0.55f,
-            ),
-        )
-        drawRect(
-            Brush.radialGradient(
-                listOf(Color.White.copy(alpha = 0.20f), Color.Transparent),
-                center = Offset(w * (0.80f + 0.15f * t), h),
-                radius = w * 0.45f,
-            ),
-        )
-
-        // Бегущий блик при смене содержимого
-        val shine = sheen()
-        if (shine in 0f..1f) {
-            val x = -w * 0.3f + w * 1.6f * shine
-            drawRect(
-                Brush.linearGradient(
-                    0f to Color.Transparent,
-                    0.5f to Color.White.copy(alpha = 0.24f),
-                    1f to Color.Transparent,
-                    start = Offset(x - w * 0.25f, 0f),
-                    end = Offset(x + w * 0.25f, h * 0.6f),
-                ),
-            )
-        }
-
-        // Свечение вдоль кромки: полоски убывающей яркости складываются в плавный спад внутрь
-        for (stroke in glow) drawOutline(outline, glowColor, style = stroke)
-
-        drawContent()
-
-        // Кромка-линза: яркая слева сверху и справа снизу, посередине почти гаснет; при наклоне сдвигается
-        val shift = t * w * 0.35f
-        val rim = Brush.linearGradient(
-            0f to Color.White.copy(alpha = 0.95f),
-            0.18f to Color.White.copy(alpha = 0.35f),
-            0.45f to Color.White.copy(alpha = 0.06f),
-            0.72f to Color.White.copy(alpha = 0.22f),
-            1f to Color(0xFFD6E8FF).copy(alpha = 0.9f),
-            start = Offset(-shift, 0f),
-            end = Offset(w - shift, h),
-        )
-        drawOutline(outline, rim, alpha = 0.35f, style = wideRim)
-        drawOutline(outline, rim, style = thinRim)
-        // Дисперсия: свет раскладывается на цвета по краям
-        translate(-dp, -dp) { drawOutline(outline, Color(0xFF7DF9FF).copy(alpha = 0.20f), style = fringe) }
-        translate(dp, dp) { drawOutline(outline, Color(0xFFFF8AD8).copy(alpha = 0.18f), style = fringe) }
+        // Длинная подпись («Не беспокоить», «Без звука») чуть уменьшается, а не обрезается
+        FitText(text, controlTint(fg), 14.sp, 11.sp, FontWeight.Medium.island, Modifier.weight(1f, fill = false), customizable = false)
     }
 }
 
@@ -532,6 +476,7 @@ fun FitText(
     weight: FontWeight,
     modifier: Modifier = Modifier,
     style: TextStyle = TextStyle.Default,
+    customizable: Boolean = true,
 ) {
     val measurer = rememberTextMeasurer()
     val base = LocalTextStyle.current.merge(style)
@@ -546,9 +491,9 @@ fun FitText(
             }
             sz.sp
         }
-        // Тот же стиль, по которому мерили: шрифт темы (Inter) и его межбуквенный интервал
+        // Тот же стиль, по которому мерили: шрифт темы и его межбуквенный интервал
         Text(text, color = color, fontSize = size, fontWeight = weight, maxLines = 1, softWrap = false,
-            overflow = TextOverflow.Ellipsis, style = base)
+            overflow = TextOverflow.Ellipsis, style = base, customizable = customizable)
     }
 }
 
@@ -614,3 +559,50 @@ fun TurnArrow(turn: Turn, color: Color, modifier: Modifier = Modifier) {
         drawPath(head, color, style = stroke)
     }
 }
+
+
+/**
+ * A clipped outline with independent widths for all four sides. The inside follows the outer rounded
+ * corners with each radius reduced by its adjacent edge width, so corners have no rectangular seams.
+ * Shape state is read at draw time; animated rounding does not rebuild the content.
+ */
+fun Modifier.islandEdgeOutline(shape: Shape, color: Color, top: Dp, right: Dp, bottom: Dp, left: Dp): Modifier =
+    drawWithCache {
+        val t = top.toPx().coerceIn(0f, size.height / 2)
+        val r = right.toPx().coerceIn(0f, size.width / 2)
+        val b = bottom.toPx().coerceIn(0f, size.height / 2)
+        val l = left.toPx().coerceIn(0f, size.width / 2)
+        val outline = shape.createOutline(size, layoutDirection, this)
+        val outer = Path()
+        val inner = Path()
+        val hasInside = size.width > l + r && size.height > t + b
+        when (outline) {
+            is Outline.Rounded -> {
+                val rr = outline.roundRect
+                outer.addRoundRect(rr)
+                if (hasInside) {
+                    fun inset(c: CornerRadius, x: Float, y: Float) = CornerRadius((c.x - x).coerceAtLeast(0f), (c.y - y).coerceAtLeast(0f))
+                    inner.addRoundRect(RoundRect(
+                        l, t, size.width - r, size.height - b,
+                        inset(rr.topLeftCornerRadius, l, t), inset(rr.topRightCornerRadius, r, t),
+                        inset(rr.bottomRightCornerRadius, r, b), inset(rr.bottomLeftCornerRadius, l, b),
+                    ))
+                }
+            }
+            is Outline.Rectangle -> {
+                outer.addRect(outline.rect)
+                if (hasInside) inner.addRect(Rect(l, t, size.width - r, size.height - b))
+            }
+            is Outline.Generic -> {
+                outer.addPath(outline.path)
+                if (hasInside) inner.addRect(Rect(l, t, size.width - r, size.height - b))
+            }
+        }
+        onDrawWithContent {
+            drawContent()
+            if (t + r + b + l > 0f && color.alpha > 0f) {
+                if (hasInside) clipPath(inner, clipOp = ClipOp.Difference) { drawPath(outer, color) }
+                else drawPath(outer, color)
+            }
+        }
+    }

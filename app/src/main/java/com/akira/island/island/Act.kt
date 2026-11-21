@@ -1,6 +1,7 @@
 package com.akira.island.island
 
 import com.akira.island.core.AlarmInfo
+import com.akira.island.core.InboxItem
 import com.akira.island.core.BatteryInfo
 import com.akira.island.core.CallInfo
 import com.akira.island.core.ChronoInfo
@@ -19,6 +20,8 @@ sealed class Act(val id: String, val transient: Boolean = false) {
     open val pkg: String? get() = null
 
     data object Idle : Act("idle")
+    data class HotspotA(val status: com.akira.island.service.HotspotStatus) : Act("hotspot")
+    data class WeatherA(val weather: com.akira.island.service.WeatherInfo) : Act("weather")
     data class NoticeA(val n: Notice) : Act("notice", transient = true)
     data class TimerA(val t: TimerState) : Act("timer")
     data class StopwatchA(val w: StopwatchState) : Act("stopwatch")
@@ -50,4 +53,6 @@ sealed class Act(val id: String, val transient: Boolean = false) {
     data class RingingAlarmA(val r: RingingAlarm) : Act("ringing-alarm") {
         override val pkg: String get() = r.pkg
     }
+    /** «История уведомлений»: прочитать позже — значки приложений в капсуле, список при раскрытии */
+    data class InboxA(val items: List<InboxItem>) : Act("inbox")
 }

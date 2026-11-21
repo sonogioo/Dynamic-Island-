@@ -6,10 +6,8 @@ import android.app.RemoteInput
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.SystemClock
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -75,8 +73,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -89,21 +85,15 @@ import com.akira.island.core.AlarmInfo
 import com.akira.island.core.AppMessage
 import com.akira.island.core.Controls
 import com.akira.island.core.IslandBus
-import com.akira.island.core.MediaInfo
 import com.akira.island.core.MsgAction
 import com.akira.island.core.Notice
 import com.akira.island.core.NoticeStyle
 import com.akira.island.core.PayReady
 import com.akira.island.core.Tints
 import com.akira.island.core.tr
+import com.akira.island.core.trf
 import com.akira.island.data.SettingsRepo
-import com.akira.island.island.Act
-import com.akira.island.island.CompactContent
 import com.akira.island.island.Ios
-import com.akira.island.island.activeHeight
-import com.akira.island.island.glassSurface
-import com.akira.island.island.islandGlow
-import com.akira.island.island.islandShape
 import com.akira.island.island.rememberHaptic
 import com.akira.island.service.NotificationParser
 import com.akira.island.service.SystemBanners
@@ -293,11 +283,9 @@ private fun DoubleBannerCard(app: String, onFix: () -> Unit, onHide: () -> Unit)
         Text(tr("Сообщения приходят дважды?", "Messages show up twice?"), color = Ui.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(6.dp))
         Text(
-            tr(
-                "Сообщение показывает и остров, и сам $app своей плашкой. Выключите у него «Всплывающие уведомления» — " +
-                    "останется только остров, а в шторке уведомление сохранится.",
-                "Both the island and $app itself show the message. Turn off its “Pop on screen” — only the island will " +
-                    "remain, and the notification stays in the shade.",
+            trf(
+                "Сообщение показывает и остров, и сам {0} своей плашкой. Выключите у него «Всплывающие уведомления» — останется только остров, а в шторке уведомление сохранится.",
+                "Both the island and {0} itself show the message. Turn off its “Pop on screen” — only the island will remain, and the notification stays in the shade.", app,
             ),
             color = Ui.Sub, fontSize = 14.sp, lineHeight = 20.sp,
         )
@@ -615,40 +603,5 @@ fun Arrow() {
 /** Живой пример капсулы с текущими настройками: толщина, боковые части, цвет и контур. */
 @Composable
 fun IslandPreview(expanded: Boolean = false) {
-    val s by SettingsRepo.state.collectAsState()
-    val demo = remember {
-        MediaInfo(
-            key = "demo", pkg = "", title = tr("Демо", "Demo"), artist = "", album = null, art = null,
-            accent = Tints.Lavender, durationMs = 0, positionMs = 0, positionTime = SystemClock.elapsedRealtime(),
-            speed = 1f, playing = true, canSeek = false,
-        )
-    }
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(140.dp)
-            .clip(RoundedCornerShape(28.dp))
-            .background(Brush.verticalGradient(listOf(Color(0xFF3B3860), Color(0xFF1F1E27)))),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        val act = if (expanded) Act.Idle else Act.MediaA(demo)
-        val corner = (if (expanded) s.height.dp else activeHeight(s)) / 2
-        val shape = islandShape(corner, s)
-        Box(
-            Modifier
-                // «Как вырез» — капсула от самого верха, как на экране
-                .padding(top = if (s.notch) 0.dp else 18.dp)
-                // «Свечение обложки» видно и на примере
-                .then(if (!expanded && s.fxGlow && !s.reduceEffects) Modifier.drawBehind { islandGlow(demo.accent, 1f, corner.toPx(), s.notch) } else Modifier)
-                .clip(shape)
-                .then(
-                    if (s.liquidGlass) Modifier.glassSurface(shape, Color(s.color), s.glassOpacity / 100f)
-                    else Modifier.background(Color(s.color)),
-                )
-                .then(if (s.outline) Modifier.border(s.outlineWidth.dp, if (s.outlineFromArt) Tints.Lavender else Color(s.outlineColor), shape) else Modifier)
-                .animateContentSize(),
-        ) {
-            CompactContent(act, s, 400.dp)
-        }
-    }
+    SettingsPreview(card = expanded)
 }

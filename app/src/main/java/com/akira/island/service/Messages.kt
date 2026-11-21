@@ -29,7 +29,10 @@ import com.akira.island.core.Notice
 import com.akira.island.core.NoticeStyle
 import com.akira.island.core.Tints
 import com.akira.island.R
+import com.akira.island.core.tr
+import com.akira.island.core.trf
 import com.akira.island.data.AccentMode
+import com.akira.island.data.AppRule
 import com.akira.island.data.SettingsRepo
 import com.akira.island.island.Ios
 
@@ -60,8 +63,7 @@ object Messages {
 
     private data class Seen(val time: Long, val text: String)
 
-    /** Куда только что ответили из острова: обновление этого уведомления с нашим же ответом не показываем */
-    private val repliedAt = HashMap<String, Long>()
+    private val deduplicator = MessageDeduplicator()
 
     private val skipCategories = setOf(
         Notification.CATEGORY_TRANSPORT,
@@ -70,9 +72,10 @@ object Messages {
         Notification.CATEGORY_SERVICE,
         Notification.CATEGORY_SYSTEM,
         Notification.CATEGORY_STATUS,
-        Notification.CATEGORY_NAVIGATION,
-        Notification.CATEGORY_STOPWATCH,
-        Notification.CATEGORY_LOCATION_SHARING,
+        // Wire category names are plain strings and can also be supplied by apps on Android 8.
+        "navigation",
+        "stopwatch",
+        "location_sharing",
     )
 
     fun maybeShow(service: NotificationListenerService, sbn: StatusBarNotification, appName: String) {
@@ -81,40 +84,50 @@ object Messages {
         val fresh = n.extras?.let { freshConversation(sbn.key, it) }
         val s = SettingsRepo.current
         if (!s.cardMessages || !s.enabled) return
+        val pkg = sbn.packageName
+        // Постоянные, служебные и сводки групп — не сообщения: их не показываем и в диагностику не пишем
         if (sbn.isOngoing) return
         if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
         if (n.flags and Notification.FLAG_FOREGROUND_SERVICE != 0) return
-        if (n.category in skipCategories) return
+        NotifApps.seen(service, pkg, appName)
+        val rule = s.msgAppRules[pkg]
+        if (rule != AppRule.ALWAYS && n.category in skipCategories) return NotifDebug.add(pkg, trf("Служебное: {0}", "Service notification: {0}", n.category))
+        if (rule == AppRule.NEVER) return NotifDebug.add(pkg, tr("Выключено для приложения", "Turned off for this app"))
         // Пока открыто само приложение, оно и так показывает сообщение — если не попросили показывать и тогда
-        if (!s.msgInApp && IslandBus.foregroundPackage.value == sbn.packageName) return
+        if (!s.msgInApp && IslandBus.foregroundPackage.value == pkg) return NotifDebug.add(pkg, tr("Приложение открыто", "The app is open"))
 
-        // Тихие, свёрнутые и заглушённые «Не беспокоить» не показываем — как и система
+        // Тихие и свёрнутые не показываем — как и система, если не попросили («Тихие уведомления» или
+        // «Всегда» для приложения). Заглушённые «Не беспокоить» не показываем никогда
         val ranking = NotificationListenerService.Ranking()
         val ranked = runCatching { service.currentRanking?.getRanking(sbn.key, ranking) == true }.getOrDefault(false)
         if (ranked) {
-            if (ranking.importance < NotificationManager.IMPORTANCE_DEFAULT) return
-            if (!ranking.matchesInterruptionFilter()) return
+            if (!allowsMessageImportance(ranking.importance, s.msgQuiet, rule == AppRule.ALWAYS)) {
+                return NotifDebug.add(pkg, tr("Тихое уведомление — включите «Тихие уведомления» или «Всегда» для приложения",
+                    "Silent notification — turn on Silent notifications or Always for this app"))
+            }
+            if (!ranking.matchesInterruptionFilter()) return NotifDebug.add(pkg, tr("«Не беспокоить»", "Do Not Disturb"))
         }
 
         // Экран блокировки: как в шторке — уведомления там скрыты, «секретные» не показываются,
         // у остальных без разрешения показывать содержимое видно только название приложения
         val locked = IslandBus.locked.value
-        if (locked && !Lockscreen.showsNotifications(service)) return
-        val visibility = if (ranked && ranking.lockscreenVisibilityOverride != NotificationListenerService.Ranking.VISIBILITY_NO_OVERRIDE) {
-            ranking.lockscreenVisibilityOverride
+        if (locked && !Lockscreen.showsNotifications(service)) {
+            return NotifDebug.add(pkg, tr("На экране блокировки уведомления выключены", "Notifications are off on the lock screen"))
+        }
+        val visibility = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ranked) {
+            val override = ranking.lockscreenVisibilityOverride
+            if (override != NotificationListenerService.Ranking.VISIBILITY_NO_OVERRIDE) override else n.visibility
         } else {
             n.visibility
         }
         val secret = visibility == Notification.VISIBILITY_SECRET
-        if (locked && secret) return
+        if (locked && secret) return NotifDebug.add(pkg, tr("Скрыто на экране блокировки", "Hidden on the lock screen"))
         val sensitive = Lockscreen.isSecure(service) &&
             (secret || visibility == Notification.VISIBILITY_PRIVATE && !Lockscreen.showsPrivate(service))
 
         val ex = n.extras ?: return
         // Мессенджер дописал в уведомление ваш же ответ — это не новое сообщение
-        if (ownLastMessage(ex)) return
-        val replied = repliedAt[sbn.key]
-        if (replied != null && SystemClock.elapsedRealtime() - replied < 5_000) return
+        if (ownLastMessage(ex)) return NotifDebug.add(pkg, tr("Ваше же сообщение", "Your own message"))
         val title = (ex.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)
             ?: ex.getCharSequence(Notification.EXTRA_TITLE))?.toString()?.trim().orEmpty()
         // Полный текст важнее краткого: у многих приложений EXTRA_TEXT — лишь «Новое сообщение» / «2 новых сообщения»,
@@ -127,22 +140,39 @@ object Messages {
             ?: lines.lastOrNull()
             ?: cs(Notification.EXTRA_TEXT)
             ?: ""
-        if (title.isEmpty() && text.isEmpty()) return
+        if (title.isEmpty() && text.isEmpty()) return NotifDebug.add(pkg, tr("Без текста", "No text"))
 
         val signature = "$title\n$text"
         if (fresh != null) {
             // Переписка: показываем, только если в ней есть сообщение новее виденного. Каждое новое сообщение
             // показывается, даже если мессенджер просит не звенеть повторно (FLAG_ONLY_ALERT_ONCE), — как на iPhone
-            if (!fresh) return
+            if (!fresh) return NotifDebug.add(pkg, tr("Повтор", "Repeat"))
         } else {
             val gone = goneAt[sbn.key]
             val previous = shown[sbn.key]?.takeUnless { gone != null && SystemClock.elapsedRealtime() - gone > 10_000 }
-            if (previous == signature) return
+            if (previous == signature) return NotifDebug.add(pkg, tr("Повтор", "Repeat"))
             // Плашка этого уведомления ещё на экране — приложение заменило «Новое сообщение» самим текстом:
             // показываем (post обновит карточку на месте), даже если уведомление просит не звенеть повторно
             val onScreen = IslandBus.notice.value?.message?.key == sbn.key
             // Обновление того же уведомления, которое просит не звенеть повторно
-            if (!onScreen && previous != null && n.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0) return
+            if (!onScreen && previous != null && n.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0) return NotifDebug.add(pkg, tr("Повтор", "Repeat"))
+        }
+        @Suppress("DEPRECATION")
+        val messages = ex.getParcelableArray(Notification.EXTRA_MESSAGES)
+        val last = messages?.lastOrNull() as? Bundle
+        @Suppress("DEPRECATION")
+        val senderIdentity = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val person = runCatching { last?.getParcelable<Person>("sender_person") }.getOrNull()
+            person?.key ?: person?.name?.toString()
+        } else null
+        val identity = MessageIdentity(
+            title, text,
+            senderIdentity ?: last?.getCharSequence("sender")?.toString().orEmpty(),
+            last?.getLong("time", 0L)?.takeIf { it > 0 } ?: n.`when`.takeIf { it > 0 } ?: sbn.postTime,
+            messages?.size ?: n.number,
+        )
+        if (fresh == null && !deduplicator.shouldShow(sbn.key, pkg, identity, s.msgDedupe, SystemClock.elapsedRealtime())) {
+            return NotifDebug.add(pkg, tr("Повтор", "Repeat"))
         }
         shown[sbn.key] = signature
         goneAt.remove(sbn.key)
@@ -177,6 +207,9 @@ object Messages {
                 extraMs = if (actions.isEmpty()) 2_000 else 4_500,
             ),
         )
+        NotifDebug.add(pkg, tr("Показано", "Shown"))
+        // «История уведомлений»: после плашки сообщение ждёт в острове
+        if (s.historyMinutes != 0) Inbox.add(message, title.ifEmpty { appName })
         // Для «Системных плашек»: какой мессенджер и всплывает ли у него ещё своя плашка поверх острова
         SystemBanners.onMessage(sbn.packageName, n.channelId, popsUp = !ranked || ranking.importance >= NotificationManager.IMPORTANCE_HIGH)
     }
@@ -205,14 +238,15 @@ object Messages {
     private fun history(ex: Bundle): List<String> {
         @Suppress("DEPRECATION")
         val arr: Array<Parcelable> = ex.getParcelableArray(Notification.EXTRA_MESSAGES) ?: return emptyList()
-        val group = ex.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, false)
+        // Read the MessagingStyle wire extra on older Android too; no newer platform API is invoked.
+        val group = ex.getBoolean("android.isGroupConversation", false)
         return arr.mapNotNull { p ->
             val b = p as? Bundle ?: return@mapNotNull null
             val text = b.getCharSequence("text")?.toString()?.trim().orEmpty()
             if (text.isEmpty()) return@mapNotNull null
             val sender = b.getCharSequence("sender")?.toString()
             if (group && !sender.isNullOrBlank()) "$sender: $text" else text
-        }.takeLast(6)
+        }.takeLast(25)
     }
 
     /** Яркий цвет аватара или значка приложения — читается на чёрном и подходит для кнопок. */
@@ -234,20 +268,20 @@ object Messages {
         val arr: Array<Parcelable>? = ex.getParcelableArray(Notification.EXTRA_MESSAGES)
         val last = arr?.lastOrNull() as? Bundle ?: return null
         val text = last.getCharSequence("text")?.toString()?.trim() ?: return null
-        val group = ex.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, false)
+        // Read the MessagingStyle wire extra on older Android too; no newer platform API is invoked.
+        val group = ex.getBoolean("android.isGroupConversation", false)
         val sender = last.getCharSequence("sender")?.toString()
         return if (group && !sender.isNullOrBlank()) "$sender: $text" else text
     }
 
     /**
-     * Последнее сообщение переписки написали вы: в MessagingStyle у своих сообщений нет отправителя
-     * или отправитель — сам пользователь (EXTRA_MESSAGING_PERSON).
+     * Own messages are identified positively by the user's MessagingStyle person. Missing sender
+     * metadata is also used by third-party incoming notifications, so absence alone is not evidence.
      */
     private fun ownLastMessage(ex: Bundle): Boolean {
         @Suppress("DEPRECATION")
         val arr: Array<Parcelable> = ex.getParcelableArray(Notification.EXTRA_MESSAGES) ?: return false
         val last = arr.lastOrNull() as? Bundle ?: return false
-        if (!last.containsKey("sender") && !last.containsKey("sender_person") && !last.containsKey("person")) return true
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && sentByMe(last, ex)
     }
 
@@ -258,14 +292,9 @@ object Messages {
         val sender = runCatching { message.getParcelable<Person>("sender_person") }.getOrNull()
         @Suppress("DEPRECATION")
         val me = runCatching { ex.getParcelable<Person>(Notification.EXTRA_MESSAGING_PERSON) }.getOrNull() ?: return false
-        if (me.key != null && sender?.key == me.key) return true
+        if (me.key != null && sender?.key != null) return sender.key == me.key
         val name = (sender?.name ?: message.getCharSequence("sender"))?.toString()
         return !name.isNullOrBlank() && name == me.name?.toString()
-    }
-
-    /** Ответ ушёл из острова: ближайшее обновление этого уведомления — наш же ответ, его не показываем. */
-    fun onReplied(key: String) {
-        repliedAt[key] = SystemClock.elapsedRealtime()
     }
 
     /**
@@ -289,9 +318,17 @@ object Messages {
     }
 
     fun forget(key: String) {
+        deduplicator.forget(key)
         // Текст и время сообщений не забываем сразу: уведомление могут тут же выложить заново
         if (key in shown) goneAt[key] = SystemClock.elapsedRealtime()
-        repliedAt.remove(key)
+    }
+
+    /**
+     * Уведомление убрали (прочитали в приложении или смахнули в шторке). Если его плашку держат дольше обычного
+     * («Показ уведомлений» больше авто или «пока не смахнёте») — она уходит тоже.
+     */
+    fun onRemoved(key: String) {
+        IslandBus.removeMessage(key)
     }
 }
 

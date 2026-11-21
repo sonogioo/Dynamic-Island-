@@ -1,52 +1,105 @@
 package com.akira.island.core
 
+import android.content.Context
 import android.content.res.Resources
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import com.akira.island.data.AppLanguage
 import com.akira.island.data.SettingsRepo
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.Json
 import java.util.Locale
 
 /**
- * Язык приложения и острова: русский, английский или итальянский. «Как в системе» — русский или итальянский,
- * если телефон на нём, иначе английский. Строки пишутся парой прямо в коде: tr("Зарядка", "Charging");
- * итальянский берётся по английской строке из словаря Italian.
+ * Язык приложения и острова. Русский и английский пишутся парой прямо в коде: tr("Зарядка", "Charging").
+ * Итальянский — словарь Italian и таблица assets/i18n/it.json. Остальные языки — таблицы в assets/i18n/<код>.json: английская
+ * строка → перевод. Чего в таблице нет, показывается по-английски. «Как в системе» — язык телефона, если он
+ * есть в приложении, иначе английский.
  */
 object Lang {
-    /** Не русский: английский или итальянский (у итальянского недостающие строки — английские) */
-    val en: Boolean
-        get() = when (SettingsRepo.current.language) {
-            AppLanguage.EN, AppLanguage.IT -> true
-            AppLanguage.RU -> false
-            AppLanguage.SYSTEM -> systemLanguage() != "ru"
-        }
+    /** Языки приложения: код → таблица переводов (у русского и английского таблиц нет) */
+    val codes = listOf("ru", "en", "it", "id", "pt", "kk", "fr", "es")
 
-    val it: Boolean
-        get() = when (SettingsRepo.current.language) {
-            AppLanguage.IT -> true
-            AppLanguage.SYSTEM -> systemLanguage() == "it"
-            else -> false
-        }
+    private var assets: android.content.res.AssetManager? = null
+    private var resources: Resources? = null
+    private val tables = HashMap<String, Map<String, String>>()
 
-    /** Для дат: «пятница, 24 октября», «venerdì 24 ottobre» или «Friday, October 24» */
-    val locale: Locale get() = when {
-        it -> Locale.ITALIAN
-        en -> Locale.ENGLISH
-        else -> Locale.forLanguageTag("ru")
+    /** Таблицы переводов читаются из assets — зовёт приложение при запуске. */
+    fun init(context: Context) {
+        assets = context.applicationContext.assets
+        resources = context.resources
     }
 
-    private fun systemLanguage(): String =
-        runCatching { Resources.getSystem().configuration.locales[0].language }.getOrNull() ?: Locale.getDefault().language
+    /** Код текущего языка из [codes]. */
+    val code: String
+        get() = when (val l = SettingsRepo.current.language) {
+            AppLanguage.SYSTEM -> systemCode()
+            else -> l.code
+        }
+
+    /** Не русский: подписи, единицы и форматы — как в английском, если у языка нет своих */
+    val en: Boolean get() = code != "ru"
+
+    /** Italiano (versione del fork) */
+    val it: Boolean get() = code == "it"
+
+    /** Для дат: «пятница, 24 октября», «Friday, October 24», «Jumat, 24 Oktober» */
+    val locale: Locale
+        get() = when (code) {
+            "ru" -> Locale.forLanguageTag("ru")
+            "it" -> Locale.ITALIAN
+            "id" -> Locale.forLanguageTag("id")
+            "pt" -> Locale.forLanguageTag("pt-BR")
+            "kk" -> Locale.forLanguageTag("kk")
+            "fr" -> Locale.FRENCH
+            "es" -> Locale.forLanguageTag("es")
+            else -> Locale.ENGLISH
+        }
+
+    private fun systemCode(): String {
+        val lang = runCatching { (resources ?: Resources.getSystem()).configuration.locales[0].language }.getOrNull() ?: Locale.getDefault().language
+        // Индонезийский у старых Android — «in»
+        val c = if (lang == "in") "id" else lang
+        return if (c in codes) c else "en"
+    }
+
+    /** Таблица перевода языка [c]: английская строка → перевод. Пустая, если файла нет. */
+    fun table(c: String): Map<String, String> = synchronized(tables) {
+        tables.getOrPut(c) {
+            runCatching {
+                val raw = assets?.open("i18n/$c.json")?.bufferedReader()?.use { it.readText() } ?: return@runCatching emptyMap()
+                Json.decodeFromString(MapSerializer(String.serializer(), String.serializer()), raw)
+            }.getOrDefault(emptyMap())
+        }
+    }
+
+    /** Строка на текущем языке по паре «русская — английская». */
+    fun pick(ru: String, en: String): String = when (val c = code) {
+        "ru" -> ru
+        "en" -> en
+        "it" -> table(c)[en] ?: Italian.words[en] ?: en
+        else -> table(c)[en] ?: en
+    }
 }
 
 /** Строка на текущем языке. */
-fun tr(ru: String, en: String): String = when {
-    Lang.it -> Italian.words[en] ?: en
-    Lang.en -> en
-    else -> ru
+fun tr(ru: String, en: String): String = Lang.pick(ru, en)
+
+/**
+ * Строка с подстановками на текущем языке: tr("Через {0} минут", "In {0} minutes", n). В переводах
+ * {0}, {1}… можно переставлять — значения встанут куда нужно.
+ */
+fun trf(ru: String, en: String, vararg args: Any?): String {
+    var s = Lang.pick(ru, en)
+    args.forEachIndexed { i, a -> s = s.replace("{$i}", a.toString()) }
+    return s
 }
 
 /**
@@ -55,8 +108,8 @@ fun tr(ru: String, en: String): String = when {
  */
 @Composable
 fun LangScope(content: @Composable () -> Unit) {
-    val s by SettingsRepo.state.collectAsState()
+    val language by remember { SettingsRepo.state.map { it.language }.distinctUntilChanged() }.collectAsState(initial = SettingsRepo.current.language)
     // Язык системы меняется вместе с конфигурацией — чтение подписывает на неё
     LocalConfiguration.current
-    key(s.language, Lang.en) { content() }
+    key(language, Lang.code) { content() }
 }
